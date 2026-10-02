@@ -18,12 +18,13 @@ internal static class Program
     {
         // 所有日志都在隔离目录；不打开窗口，不启动程序，不弹 UAC。
         Environment.SetEnvironmentVariable("LOCALAPPDATA", Path.Combine(Path.GetTempPath(), "StarPie-ProcessLaunchTests-" + Guid.NewGuid().ToString("N")));
-        Check(AppVersionInfo.DisplayVersion == "1.8.0-beta.4", "host release version remains beta.4");
+        Check(AppVersionInfo.DisplayVersion == "1.8.0-beta.5", "host release version is beta.5");
         Check(SimpleVersion.TryParse("1.8.0-beta.4", out var oldHost) &&
             SimpleVersion.TryParse("1.8.0-beta.5", out _), "minimum host versions parse");
+        SimpleVersion.TryParse(AppVersionInfo.DisplayVersion, out var currentHost);
         SimpleVersion.TryParse("1.8.0-beta.5", out var minimum);
         Check(!SimpleVersion.SatisfiesMinimum(oldHost, minimum), "beta.4 cannot load beta.5 modules");
-        Check(SimpleVersion.SatisfiesMinimum(minimum, minimum), "beta.5 accepts beta.5 modules");
+        Check(SimpleVersion.SatisfiesMinimum(currentHost, minimum), "beta.5 accepts beta.5 modules");
         var info = new ProcessStartInfo("cmd.exe", "/c echo test")
         { UseShellExecute = false, WorkingDirectory = @"C:\test folder", CreateNoWindow = true };
         int processCalls = 0, shellCalls = 0;
@@ -140,11 +141,10 @@ internal static class Program
             var productionManifest = JsonSerializer.Deserialize<PluginManifest>(
                 File.ReadAllText(Path.Combine(source, "plugin.json")),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-            Check(!PluginManifestReader.Validate(productionManifest, out PluginScanFailure failure, out _, true) &&
-                failure == PluginScanFailure.HostVersionOutOfRange,
-                "production beta.5 minimum still rejects beta.4 " + type);
-            // 只调整隔离测试副本以测试参数渲染；生产清单和版本门禁保持不变。
-            productionManifest.MinHostVersion = AppVersionInfo.DisplayVersion;
+            Check(PluginManifestReader.Validate(productionManifest, out PluginScanFailure failure, out _, true) &&
+                failure == PluginScanFailure.None,
+                "production beta.5 manifest accepted by beta.5 " + type);
+            // 写入隔离测试副本以测试参数渲染；无需修改清单，生产清单和版本门禁保持一致。
             File.WriteAllText(Path.Combine(directory, "plugin.json"), JsonSerializer.Serialize(productionManifest));
             registry.Entries.Add(new PluginRegistryEntry
             {
