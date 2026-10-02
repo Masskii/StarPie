@@ -2062,7 +2062,9 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsCardNotLoaded", "未加载", "未載入", "not loaded", "未読み込み");
 		Add("PluginsCardPreloadCheckBox", "开机预加载", "開機預載入", "Preload", "起動時プリロード");
 		Add("PluginsCardRestartReason", "旧程序集尚未从内存释放，重启 StarPie 后才会完全生效。", "舊組件尚未從記憶體釋放，重新啟動 StarPie 後才會完全生效。", "The old assembly is still held in memory; it takes full effect only after restarting StarPie.", "古いアセンブリがまだメモリ上に残っています。StarPie を再起動すると完全に反映されます。");
-		Add("PluginsRestartPrompt", "插件 {0} 已停止，但旧程序集仍被占用。\n\n{1}\n\n现在立即重启 StarPie 吗？", "外掛 {0} 已停止，但舊組件仍被佔用。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？", "Plugin {0} has stopped, but its old assembly is still held in memory.\n\n{1}\n\nRestart StarPie now?", "プラグイン {0} は停止しましたが、古いアセンブリがまだ使用中です。\n\n{1}\n\nStarPie を今すぐ再起動しますか？");
+		Add("PluginsRestartPrompt", "插件 {0} 尚未完全停止或释放。\n\n{1}\n\n现在立即重启 StarPie 吗？", "外掛 {0} 尚未完全停止或釋放。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？", "Plugin {0} has not fully stopped or released its resources.\n\n{1}\n\nRestart StarPie now?", "プラグイン {0} は完全に停止していないか、リソースがまだ解放されていません。\n\n{1}\n\nStarPie を今すぐ再起動しますか？");
+		Add("PluginsUpdateRestartPrompt", "插件 {0} 的安装或更新未完成，旧版本尚未完全停止或文件仍被占用。\n\n{1}\n\n现在立即重启 StarPie 吗？重启后请再次执行安装或更新，不会自动继续。若文件被其他程序占用，还需先关闭占用程序。", "外掛 {0} 的安裝或更新未完成，舊版本尚未完全停止或檔案仍被佔用。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？重新啟動後請再次執行安裝或更新，不會自動繼續。若檔案被其他程式佔用，還需先關閉佔用程式。", "Installation or update of plugin {0} did not complete: the old version has not fully stopped or files are still in use.\n\n{1}\n\nRestart StarPie now? Run the installation or update again after restarting; it will not resume automatically. If another application holds the files, close that application too.", "プラグイン {0} のインストールまたは更新は完了していません。旧バージョンが完全に停止していないか、ファイルがまだ使用中です。\n\n{1}\n\nStarPie を今すぐ再起動しますか？再起動後にインストールまたは更新を再実行してください。自動では再開されません。他のアプリがファイルを使用している場合は、そのアプリも閉じてください。");
+		Add("PluginsRestartStartFailed", "无法启动新的 StarPie 进程", "無法啟動新的 StarPie 程序", "Could not start a new StarPie process", "新しい StarPie プロセスを起動できませんでした");
 		Add("PluginsRestartTitle", "重启 StarPie", "重新啟動 StarPie", "Restart StarPie", "StarPie を再起動");
 		Add("PluginsRestartFailed", "重启 StarPie 失败：{0}", "重新啟動 StarPie 失敗：{0}", "Failed to restart StarPie: {0}", "StarPie の再起動に失敗しました：{0}");
 		Add("PluginsCardSettingsButton", "⚙ 设置", "⚙ 設定", "⚙ Settings", "⚙ 設定");
@@ -2135,6 +2137,14 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsMsgTitle", "StarPie 插件", "StarPie 外掛", "StarPie Plugins", "StarPie プラグイン");
 		Add("PluginsNotAPlugin", "这个文件不能作为 StarPie 插件安装。\n\n原因：{0}\n详情：{1}\n\n建议：{2}\n\n文件：{3}", "這個檔案不能作為 StarPie 外掛安裝。\n\n原因：{0}\n詳情：{1}\n\n建議：{2}\n\n檔案：{3}", "This file cannot be installed as a StarPie plugin.\n\nReason: {0}\nDetails: {1}\n\nSuggestion: {2}\n\nFile: {3}", "このファイルは StarPie プラグインとしてインストールできません。\n\n理由：{0}\n詳細：{1}\n\n推奨：{2}\n\nファイル：{3}");
 		Add("PluginsNotReady", "插件系统尚未完成初始化。请稍候片刻再试，或重启 StarPie。", "外掛系統尚未完成初始化。請稍候片刻再試，或重新啟動 StarPie。", "The plugin system has not finished initializing yet. Please wait a moment and try again, or restart StarPie.", "プラグインシステムの初期化が完了していません。しばらく待ってから再試行するか、StarPie を再起動してください。");
+        Add("PluginsCompatibilityHostOld", "需要主程序 ≥ {0}，当前为 {1}", "需要主程式 ≥ {0}，目前為 {1}", "Requires StarPie ≥ {0}; current: {1}", "StarPie {0} 以上が必要です（現在: {1}）");
+        Add("PluginsCompatibilityHostNew", "支持主程序 ≤ {0}，当前为 {1}", "支援主程式 ≤ {0}，目前為 {1}", "Supports StarPie ≤ {0}; current: {1}", "StarPie {0} 以下に対応（現在: {1}）");
+        Add("PluginsCompatibilityApi", "需要 SDK API {0}，当前支持 {1}", "需要 SDK API {0}，目前支援 {1}", "Requires SDK API {0}; supported: {1}", "SDK API {0} が必要です（対応: {1}）");
+        Add("PluginsCompatibilityFramework", "需要目标框架 {0}，当前为 {1}", "需要目標框架 {0}，目前為 {1}", "Requires target framework {0}; current: {1}", "対象フレームワーク {0} が必要です（現在: {1}）");
+        Add("PluginsCompatibilityInvalid", "版本或兼容性信息无效，请刷新目录", "版本或相容性資訊無效，請重新整理目錄", "Invalid version or compatibility metadata. Refresh the catalog.", "バージョンまたは互換性情報が無効です。カタログを更新してください。");
+        Add("PluginsOfficialActionUnavailable", "当前环境不可安装", "目前環境無法安裝", "Unavailable for this host", "現在の環境ではインストール不可");
+        Add("PluginsOfficialStateCompatibleCurrent", "已是当前环境的最新兼容版本", "已是目前環境的最新相容版本", "Latest compatible version installed", "最新の互換バージョンを導入済み");
+        Add("PluginsOfficialStateInstalledNewer", "已安装版本较新，不自动降级", "已安裝版本較新，不自動降級", "A newer version is installed; no automatic downgrade", "より新しいバージョンを導入済み（自動ダウングレードなし）");
 		Add("PluginsOfficialActionInstall", "⬇️ 下载并安装", "⬇️ 下載並安裝", "⬇️ Download and install", "⬇️ ダウンロードしてインストール");
 		Add("PluginsOfficialActionInstalled", "已安装", "已安裝", "Installed", "インストール済み");
 		Add("PluginsOfficialActionUpdate", "⬆️ 更新", "⬆️ 更新", "⬆️ Update", "⬆️ 更新");

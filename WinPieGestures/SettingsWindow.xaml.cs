@@ -7584,7 +7584,7 @@ public partial class SettingsWindow : Window
 		if (OfficialPluginItemsControl == null || _officialPluginCatalog == null) return;
 		var installed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		foreach (PluginInstance instance in PluginHost.ListInstances()) installed[instance.PluginId] = instance.Entry.Version;
-		OfficialPluginItemsControl.ItemsSource = _officialPluginCatalog.Modules.OrderBy(module => module.Name, StringComparer.CurrentCultureIgnoreCase).Select(module => new OfficialPluginListItem(module, installed.TryGetValue(module.Id, out string? version) ? version : null)).ToList();
+		OfficialPluginItemsControl.ItemsSource = _officialPluginCatalog.Modules.Select(module => new OfficialPluginListItem(module, installed.TryGetValue(module.Id, out string? version) ? version : null)).OrderBy(item => item.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
 	}
 
 	private void OpenOfficialPluginDetailsButton_Click(object sender, RoutedEventArgs e)
@@ -7625,14 +7625,22 @@ public partial class SettingsWindow : Window
 		{
 			OfficialPluginInstallResult result = await OfficialPluginClient.InstallAsync(module);
 			string title = I18n.T("PluginsOfficialMsgTitle");
-			if (!result.Success) System.Windows.MessageBox.Show(this, I18n.TF("PluginsOfficialInstallFailed", module.Name, result.Error), title, MessageBoxButton.OK, MessageBoxImage.Warning);
+			if (!result.Success)
+			{
+				string detail = I18n.TF("PluginsOfficialInstallFailed", module.Name, result.Error);
+				if (!result.RestartSuggested || !OfferPluginRestart(result.PluginId, detail, restartSuggested: true, retryInstall: true))
+					System.Windows.MessageBox.Show(this, detail, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+			}
 			else System.Windows.MessageBox.Show(this, I18n.TF("PluginsOfficialInstalled", module.Name, module.Version), title, MessageBoxButton.OK, MessageBoxImage.Information);
 		}
 		finally
 		{
-			button.IsEnabled = true;
-			RefreshPluginManagerUi();
-			RenderOfficialPluginItems();
+			if (!App.IsExiting)
+			{
+				button.IsEnabled = true;
+				RefreshPluginManagerUi();
+				RenderOfficialPluginItems();
+			}
 		}
 	}
 
@@ -7874,8 +7882,9 @@ public partial class SettingsWindow : Window
 
 		if (!installResult.Success)
 		{
-			System.Windows.MessageBox.Show(this,
-				I18n.TF("PluginsInstallFailed", error), I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+			string detail = I18n.TF("PluginsInstallFailed", error);
+			if (!installResult.RestartSuggested || !OfferPluginRestart(installResult.PluginId, detail, restartSuggested: true, retryInstall: true))
+				System.Windows.MessageBox.Show(this, detail, I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
 		}
 		else if (candidate.State == PluginCandidateState.Update)
 		{
@@ -7884,7 +7893,7 @@ public partial class SettingsWindow : Window
 				I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
 		}
 
-		RefreshPluginManagerUi();
+		if (!App.IsExiting) RefreshPluginManagerUi();
 	}
 
 	/// <summary>打开只读扫描目录。目录不存在时只提示路径，绝不代为创建。</summary>
@@ -8024,8 +8033,10 @@ public partial class SettingsWindow : Window
 
 		if (!result.Success)
 		{
-			System.Windows.MessageBox.Show(this, I18n.TF("PluginsInstallFailed", result.Error),
-				I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+			string detail = I18n.TF("PluginsInstallFailed", result.Error);
+			if (!result.RestartSuggested || !OfferPluginRestart(result.PluginId, detail, restartSuggested: true, retryInstall: true))
+				System.Windows.MessageBox.Show(this, detail, I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+			if (!App.IsExiting) RefreshPluginManagerUi();
 			return;
 		}
 
@@ -8215,7 +8226,7 @@ public partial class SettingsWindow : Window
 				}
 				else if (!stop.IsFullyStopped)
 				{
-					if (!OfferPluginRestart(pluginId, stop.Message))
+					if (!OfferPluginRestart(pluginId, stop.Message, restartSuggested: stop.RestartSuggested))
 					{
 						System.Windows.MessageBox.Show(this, stop.Message,
 							I18n.T("PluginsStoppingTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
@@ -8225,16 +8236,17 @@ public partial class SettingsWindow : Window
 		}
 		finally
 		{
-			box.IsEnabled = true;
-			RefreshPluginManagerUi();
+			if (!App.IsExiting)
+			{
+				box.IsEnabled = true;
+				RefreshPluginManagerUi();
+			}
 		}
 	}
 
-	private bool OfferPluginRestart(string pluginId, string detail)
+	private bool OfferPluginRestart(string pluginId, string detail, bool restartSuggested = false, bool retryInstall = false)
 	{
-		if (!PluginHost.IsRestartRequired(pluginId) &&
-			!detail.Contains("旧运行时", StringComparison.OrdinalIgnoreCase) &&
-			!detail.Contains("old runtime", StringComparison.OrdinalIgnoreCase))
+		if (!restartSuggested && !PluginHost.IsRestartRequired(pluginId))
 		{
 			return false;
 		}
@@ -8242,16 +8254,16 @@ public partial class SettingsWindow : Window
 		string pluginName = PluginHost.Find(pluginId)?.Entry.Name ?? pluginId;
 		MessageBoxResult choice = MessageBox.Show(
 			this,
-			I18n.TF("PluginsRestartPrompt", pluginName, detail),
+			I18n.TF(retryInstall ? "PluginsUpdateRestartPrompt" : "PluginsRestartPrompt", pluginName, detail),
 			I18n.T("PluginsRestartTitle"),
 			MessageBoxButton.YesNo,
 			MessageBoxImage.Warning,
-			MessageBoxResult.Yes);
+			MessageBoxResult.No);
 		if (choice != MessageBoxResult.Yes) return true;
 
 		if (App.Restart()) return true;
 
-		MessageBox.Show(this, I18n.TF("PluginsRestartFailed", "无法启动新的 StarPie 进程"),
+		MessageBox.Show(this, I18n.TF("PluginsRestartFailed", I18n.T("PluginsRestartStartFailed")),
 			I18n.T("PluginsRestartTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
 		return true;
 	}
