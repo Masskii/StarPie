@@ -9,17 +9,21 @@ public class MouseEventArgs : EventArgs
 
 	public bool Handled { get; set; }
 
-	public MouseEventArgs(double x, double y)
+	public TargetWindowInfo? TargetWindow { get; set; }
+
+	public MouseEventArgs(double x, double y, TargetWindowInfo? targetWindow = null)
 	{
 		Position = new Point(x, y);
 		Handled = false;
+		TargetWindow = targetWindow;
 	}
 
 	/// <summary>复用实例：重置坐标与 Handled 标记。仅限钩子回调线程在派发前调用，订阅方不得跨线程或异步持有该实例。</summary>
-	internal void Update(double x, double y)
+	internal void Update(double x, double y, TargetWindowInfo? targetWindow = null)
 	{
 		Position = new Point(x, y);
 		Handled = false;
+		TargetWindow = targetWindow;
 	}
 }
 

@@ -442,42 +442,46 @@ public class MouseHook
 			}
 			if (!string.IsNullOrEmpty(text))
 			{
+				System.Windows.Point mousePt = new System.Windows.Point(mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y);
+				TargetWindowInfo targetAtPoint = WheelFocusSwitcher.ResolveTarget(mousePt);
+
 				RawMouseEventArgs e3 = _rawButtonArgs;
-				e3.Update(num, text, mSLLHOOKSTRUCT.mouseData, flag, mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y);
+				e3.Update(num, text, mSLLHOOKSTRUCT.mouseData, flag, mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y, targetAtPoint);
 				OnRawMouseButtonEvent?.Invoke(this, e3);
 				if (e3.Handled)
 				{
 					return 1; // 手势等已接管该按键：拦截原生事件
 				}
-			}
-			string activeProc = ActiveWindowHelper.GetActiveWindowProcessName();
-			var triggerConfig = GestureController.GetEffectiveTriggerForProcess(activeProc);
-			bool isMouseTrigger = triggerConfig == null || string.Equals(triggerConfig.TriggerType, "Mouse", StringComparison.OrdinalIgnoreCase);
-			if (isMouseTrigger || !string.IsNullOrEmpty(_activeMouseTriggerButton))
-			{
-				string text2 = _activeMouseTriggerButton ?? triggerConfig?.MouseButton ?? ConfigManager.CurrentConfig?.TriggerButton ?? "RightButton";
-				bool num2 = flag && string.Equals(text, text2, StringComparison.OrdinalIgnoreCase);
-				bool flag3 = flag2 && string.Equals(text, text2, StringComparison.OrdinalIgnoreCase);
-				if (num2)
+
+				string activeProc = targetAtPoint.ProcessName;
+				var triggerConfig = GestureController.GetEffectiveTriggerForProcess(activeProc);
+				bool isMouseTrigger = triggerConfig == null || string.Equals(triggerConfig.TriggerType, "Mouse", StringComparison.OrdinalIgnoreCase);
+				if (isMouseTrigger || !string.IsNullOrEmpty(_activeMouseTriggerButton))
 				{
-					MouseEventArgs e4 = _triggerDownArgs;
-					e4.Update(mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y);
-					OnTriggerButtonDown?.Invoke(this, e4);
-					if (e4.Handled)
+					string text2 = _activeMouseTriggerButton ?? triggerConfig?.MouseButton ?? ConfigManager.CurrentConfig?.TriggerButton ?? "RightButton";
+					bool num2 = flag && string.Equals(text, text2, StringComparison.OrdinalIgnoreCase);
+					bool flag3 = flag2 && string.Equals(text, text2, StringComparison.OrdinalIgnoreCase);
+					if (num2)
 					{
-						_activeMouseTriggerButton = text;
-						return 1;
+						MouseEventArgs e4 = _triggerDownArgs;
+						e4.Update(mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y, targetAtPoint);
+						OnTriggerButtonDown?.Invoke(this, e4);
+						if (e4.Handled)
+						{
+							_activeMouseTriggerButton = text;
+							return 1;
+						}
 					}
-				}
-				else if (flag3)
-				{
-					_activeMouseTriggerButton = null;
-					MouseEventArgs e5 = _triggerUpArgs;
-					e5.Update(mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y);
-					OnTriggerButtonUp?.Invoke(this, e5);
-					if (e5.Handled)
+					else if (flag3)
 					{
-						return 1;
+						_activeMouseTriggerButton = null;
+						MouseEventArgs e5 = _triggerUpArgs;
+						e5.Update(mSLLHOOKSTRUCT.pt.x, mSLLHOOKSTRUCT.pt.y, targetAtPoint);
+						OnTriggerButtonUp?.Invoke(this, e5);
+						if (e5.Handled)
+						{
+							return 1;
+						}
 					}
 				}
 			}

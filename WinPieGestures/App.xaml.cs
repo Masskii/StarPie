@@ -416,16 +416,30 @@ public partial class App : Application
 		{
 			return;
 		}
-		MainMouseHook.IsPaused = !MainMouseHook.IsPaused;
-		if (MainKeyboardHook != null)
+		ApplyPauseStateTransition(!MainMouseHook.IsPaused, MainMouseHook, MainKeyboardHook, MainGestureController, MainTrayController);
+	}
+
+	internal static void ApplyPauseStateTransition(
+		bool paused,
+		MouseHook? mouseHook,
+		KeyboardHook? keyboardHook,
+		GestureController? gestureController,
+		TrayController? trayController)
+	{
+		if (mouseHook != null)
 		{
-			MainKeyboardHook.IsPaused = MainMouseHook.IsPaused;
+			mouseHook.IsPaused = paused;
 		}
-		if (MainMouseHook.IsPaused)
+		if (keyboardHook != null)
+		{
+			keyboardHook.IsPaused = paused;
+		}
+		if (paused)
 		{
 			KeyboardRemapController.Current.OnHostPaused();
+			gestureController?.OnHostPaused();
 		}
-		MainTrayController?.UpdatePauseState(MainMouseHook.IsPaused);
+		trayController?.UpdatePauseState(paused);
 	}
 
 	/// <summary>普通重启：等待当前进程退出后启动同一路径的 StarPie。</summary>
