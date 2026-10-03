@@ -69,6 +69,10 @@ public static class WindowTaskbarHelper
 	}
 
 	[DllImport("user32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static extern bool IsWindow(nint hWnd);
+
+	[DllImport("user32.dll")]
 	private static extern bool IsWindowVisible(nint hWnd);
 
 	[DllImport("user32.dll")]
@@ -888,6 +892,71 @@ public static class WindowTaskbarHelper
 				AttachThreadInput(foregroundThread, currentThread, false);
 			}
 			return ok;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// 保守激活窗口到前台：通过 AttachThreadInput + BringWindowToTop + SetForegroundWindow 尝试获取焦点。
+	/// 与普通 <see cref="ActivateWindow(nint)"/> 的区别在于：
+	/// 绝不注入 Alt 键（杜绝在用户应用中产生多余菜单热键副作用），
+	/// 绝不切换 HWND_TOPMOST / HWND_NOTOPMOST 状态（杜绝破坏用户窗口已有的置顶属性）。
+	/// 专用于轮盘呼出时的前台对齐。成功返回 true，若 Windows 前台锁阻止或目标无法激活则返回 false。
+	/// </summary>
+	public static bool ActivateWindowConservative(nint hWnd)
+	{
+		if (hWnd == IntPtr.Zero || !IsWindow(hWnd))
+		{
+			return false;
+		}
+		try
+		{
+			if (GetForegroundWindow() == hWnd)
+			{
+				return true;
+			}
+
+			nint hForeground = GetForegroundWindow();
+			uint foregroundThread = (hForeground != IntPtr.Zero) ? GetWindowThreadProcessId(hForeground, out _) : 0u;
+			uint targetThread = GetWindowThreadProcessId(hWnd, out _);
+			uint currentThread = GetCurrentThreadId();
+
+			bool attachedForeground = false;
+			bool attachedTarget = false;
+			if (foregroundThread != 0u && foregroundThread != currentThread && foregroundThread != targetThread)
+			{
+				attachedForeground = AttachThreadInput(foregroundThread, currentThread, true);
+			}
+			if (targetThread != currentThread)
+			{
+				attachedTarget = AttachThreadInput(currentThread, targetThread, true);
+			}
+
+			try
+			{
+				if (IsIconic(hWnd))
+				{
+					ShowWindow(hWnd, SW_RESTORE);
+				}
+				BringWindowToTop(hWnd);
+				SetForegroundWindow(hWnd);
+			}
+			finally
+			{
+				if (attachedTarget)
+				{
+					AttachThreadInput(currentThread, targetThread, false);
+				}
+				if (attachedForeground)
+				{
+					AttachThreadInput(foregroundThread, currentThread, false);
+				}
+			}
+
+			return GetForegroundWindow() == hWnd;
 		}
 		catch
 		{

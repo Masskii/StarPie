@@ -15,6 +15,45 @@ using Microsoft.Win32;
 
 namespace WinPieGestures;
 
+/// <summary>
+/// 动作执行的目标上下文：携带会话目标 HWND、PID 与有效性校验回调。
+/// 在后台执行线程真正消费动作前重新核验，防止因快速切换窗口把动作错发给前台旧窗口或无关程序。
+/// </summary>
+public sealed class ActionExecutionContext
+{
+	public nint TargetHwnd { get; }
+	public uint TargetProcessId { get; }
+	public string TargetProcessName { get; }
+	public Func<bool>? IsValidCallback { get; }
+	public Action? OnConsumed { get; }
+
+	public ActionExecutionContext(
+		nint targetHwnd,
+		uint targetProcessId,
+		string? targetProcessName,
+		Func<bool>? isValidCallback = null,
+		Action? onConsumed = null)
+	{
+		TargetHwnd = targetHwnd;
+		TargetProcessId = targetProcessId;
+		TargetProcessName = string.IsNullOrWhiteSpace(targetProcessName) ? string.Empty : targetProcessName.Trim().ToLowerInvariant();
+		IsValidCallback = isValidCallback;
+		OnConsumed = onConsumed;
+	}
+}
+
+internal readonly struct ActionEnvelope
+{
+	public ActionItem Action { get; }
+	public ActionExecutionContext? Context { get; }
+
+	public ActionEnvelope(ActionItem action, ActionExecutionContext? context = null)
+	{
+		Action = action;
+		Context = context;
+	}
+}
+
 public static class ActionExecutor
 {
 	private delegate bool EnumWindowsProc(nint hWnd, nint lParam);
@@ -216,7 +255,18 @@ public static class ActionExecutor
 	[DllImport("user32.dll", SetLastError = true)]
 	private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
-	private static readonly Channel<ActionItem> s_actionChannel = Channel.CreateUnbounded<ActionItem>(new UnboundedChannelOptions
+	#region 测试切缝 (Test Seams)
+	internal static Action<ActionItem, ActionExecutionContext?>? ActionExecutionOverride { get; set; }
+	internal static Action? ReleaseStuckModifiersOverride { get; set; }
+
+	internal static void ResetTestSeams()
+	{
+		ActionExecutionOverride = null;
+		ReleaseStuckModifiersOverride = null;
+	}
+	#endregion
+
+	private static readonly Channel<ActionEnvelope> s_actionChannel = Channel.CreateUnbounded<ActionEnvelope>(new UnboundedChannelOptions
 	{
 		SingleReader = true,
 		SingleWriter = false
@@ -233,11 +283,12 @@ public static class ActionExecutor
 		worker.Start();
 	}
 
-	public static void EnqueueAction(ActionItem action)
+	public static void EnqueueAction(ActionItem action, ActionExecutionContext? context = null)
 	{
 		if (action != null)
 		{
-			s_actionChannel.Writer.TryWrite(action);
+			ActionItem snapshot = action.Clone();
+			s_actionChannel.Writer.TryWrite(new ActionEnvelope(snapshot, context));
 		}
 	}
 
@@ -263,7 +314,8 @@ public static class ActionExecutor
 		{
 			return;
 		}
-		EnqueueAction(action.Clone());
+		// EnqueueAction 内部已执行快照 Clone，此处避免重复克隆
+		EnqueueAction(action);
 	}
 
 	private static void ProcessActionQueue()
@@ -275,24 +327,86 @@ public static class ActionExecutor
 			{
 				if (reader.WaitToReadAsync().AsTask().Result)
 				{
-					while (reader.TryRead(out ActionItem? action))
+					while (reader.TryRead(out ActionEnvelope envelope))
 					{
-						if (action != null)
-						{
-							try
-							{
-								Execute(action);
-							}
-							catch
-							{
-							}
-						}
+						ProcessActionEnvelope(envelope);
 					}
 				}
 			}
 			catch
 			{
 			}
+		}
+	}
+
+	internal static bool ProcessActionEnvelope(ActionEnvelope envelope)
+	{
+		ActionItem? action = envelope.Action;
+		if (action == null)
+		{
+			return false;
+		}
+
+		if (envelope.Context != null)
+		{
+			ActionExecutionContext ctx = envelope.Context;
+			bool targetValid = true;
+			if (ctx.IsValidCallback != null && !ctx.IsValidCallback())
+			{
+				targetValid = false;
+			}
+			if (targetValid && ctx.TargetHwnd != IntPtr.Zero)
+			{
+				if (!WheelFocusSwitcher.IsWindow(ctx.TargetHwnd) || !WheelFocusSwitcher.IsWindowVisible(ctx.TargetHwnd))
+				{
+					targetValid = false;
+				}
+				else
+				{
+					nint fgHwnd = WheelFocusSwitcher.GetForegroundWindowSafe();
+					if (fgHwnd != ctx.TargetHwnd)
+					{
+						targetValid = false;
+					}
+					else
+					{
+						uint currentPid = ActiveWindowHelper.GetWindowRealProcessId(ctx.TargetHwnd);
+						if (ctx.TargetProcessId != 0 && currentPid != ctx.TargetProcessId)
+						{
+							targetValid = false;
+						}
+					}
+				}
+			}
+
+			if (!targetValid)
+			{
+				AppLogger.LogWarn($"Action '{action.Name}' ({action.Type}) cancelled before execution: target window 0x{ctx.TargetHwnd:X} ({ctx.TargetProcessName}) is no longer foreground or PID changed.");
+				ctx.OnConsumed?.Invoke();
+				return false;
+			}
+		}
+
+		try
+		{
+			if (ActionExecutionOverride != null)
+			{
+				ActionExecutionOverride(action, envelope.Context);
+			}
+			else
+			{
+				Execute(action);
+			}
+			return true;
+		}
+		catch (Exception ex)
+		{
+			AppLogger.LogError($"Action execution threw: {action.Name}", ex);
+			return false;
+		}
+		finally
+		{
+			envelope.Context?.OnConsumed?.Invoke();
 		}
 	}
 
@@ -2537,6 +2651,11 @@ public static class ActionExecutor
 
 	public static void ReleaseStuckModifiers()
 	{
+		if (ReleaseStuckModifiersOverride != null)
+		{
+			ReleaseStuckModifiersOverride();
+			return;
+		}
 		try
 		{
 			// 智能解卡自愈：强制下发 KeyUp 清空系统粘滞状态（双通道 SendInput + keybd_event 注入）
