@@ -17,7 +17,7 @@ internal static class ArtStyleTests
     public static int Main(string[] args)
     {
         Environment.SetEnvironmentVariable("LOCALAPPDATA", Path.Combine(Path.GetTempPath(), "StarPie-ArtStyle-Tests-" + Guid.NewGuid().ToString("N")));
-        _ = new Application();
+        _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         RunDataTests();
         if (args.Contains("--data")) return Summary();
         SetConfig(JsonSerializer.Deserialize<AppConfig>("{\"SelectedArtStyleId\":\"paper\"}")!);

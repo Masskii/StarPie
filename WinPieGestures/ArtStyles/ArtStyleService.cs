@@ -3,8 +3,25 @@ using System.Text.Json;
 
 namespace WinPieGestures.ArtStyles;
 
-public static class ArtStyleService
+public sealed class ArtStyleService
 {
+	private ArtStyleService() { }
+	public static ArtStyleService Instance { get; } = new();
+	public event EventHandler? Changed;
+
+	/// <summary>UI-only visual refresh; callers decide when to persist. Weak listeners do not retain closed settings.</summary>
+	public static void NotifyChanged()
+	{
+		var app = System.Windows.Application.Current;
+		if (app != null && !app.Dispatcher.CheckAccess()) { app.Dispatcher.Invoke(NotifyChanged); return; }
+		ConfigManager.MarkConfigurationChanged();
+		if (app != null) foreach (System.Windows.Window window in app.Windows.Cast<System.Windows.Window>().ToArray())
+		{
+			if (window is RadialWindow) continue;
+			AppThemeManager.ApplyTheme(window, ConfigManager.CurrentConfig.AppTheme);
+		}
+		Instance.Changed?.Invoke(Instance, EventArgs.Empty);
+	}
     public const int MaxFileCharacters = 65536;
     private const int MaxUserThemes = 128;
     private static readonly JsonSerializerOptions FileOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, WriteIndented = true, MaxDepth = 16 };

@@ -1660,12 +1660,7 @@ public partial class SettingsWindow : Window
 
 	public bool IsCurrentThemeDark()
 	{
-		string theme = ConfigManager.CurrentConfig?.AppTheme ?? "System";
-		if (string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(theme))
-		{
-			return AppThemeManager.IsWindowsInDarkTheme();
-		}
-		return !string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase);
+		return AppThemeManager.IsEffectiveDark(ConfigManager.CurrentConfig?.AppTheme);
 	}
 
 	public void UpdateLogoTheme(bool isDark)
@@ -16269,6 +16264,7 @@ public partial class SettingsWindow : Window
 	{
 		if (!_isUpdatingUi && ConfigManager.CurrentConfig != null)
 		{
+			ConfigManager.CurrentConfig.SelectedArtStyleId = "";
 			ConfigManager.CurrentConfig.AppTheme = themeTag;
 			AppThemeManager.ApplyTheme(this, themeTag);
 			UpdateSidebarThemeVisualState(themeTag);
@@ -16280,6 +16276,7 @@ public partial class SettingsWindow : Window
 				RenderLiveWheelPreview();
 			}
 			SyncUiToConfigAndSave();
+			ArtStyles.ArtStyleService.NotifyChanged();
 		}
 	}
 

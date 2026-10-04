@@ -18,6 +18,16 @@ public static class AppThemeManager
 	{
 		if (rootElement != null)
 		{
+			var art = ArtStyles.ArtStyleResolver.Resolve(ConfigManager.CurrentConfig);
+			if (art != null)
+			{
+				ArtStyles.ArtStyleResources.Apply(rootElement, art);
+				CurrentEffectiveTheme = art.IsDark ? "Dark" : "Light";
+				Window? artWindow = rootElement as Window ?? Window.GetWindow(rootElement);
+				if (artWindow != null) SetWindowDarkMode(artWindow, art.IsDark);
+				return;
+			}
+			ArtStyles.ArtStyleResources.ResetMetrics(rootElement);
 			string text = themeName;
 			if (string.Equals(themeName, "System", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(themeName))
 			{
@@ -139,5 +149,13 @@ public static class AppThemeManager
 		{
 		}
 		return false;
+	}
+
+	public static bool IsEffectiveDark(string? themeName)
+	{
+		var art = ArtStyles.ArtStyleResolver.Resolve(ConfigManager.CurrentConfig);
+		if (art != null) return art.IsDark;
+		if (string.IsNullOrEmpty(themeName) || string.Equals(themeName, "System", StringComparison.OrdinalIgnoreCase)) return IsWindowsInDarkTheme();
+		return !string.Equals(themeName, "Light", StringComparison.OrdinalIgnoreCase);
 	}
 }
