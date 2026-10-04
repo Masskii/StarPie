@@ -9565,7 +9565,7 @@ public partial class SettingsWindow : Window
 			// 功能配置界面 (Tab 2) 统一强制采用经典同心圆弧样式 ("Original")，杜绝胶囊或异形带来的扇区变形与位置失真
 			string shape = "Original";
 
-			IRadialStyleRenderer renderer = StyleRendererFactory.CreateRenderer(uiStyle);
+			IRadialStyleRenderer renderer = StyleRendererFactory.CreateRenderer(uiStyle, ConfigManager.CurrentConfig);
 			renderer.Initialize(theme, ConfigManager.CurrentConfig);
 
 			Brush defaultBrush = renderer.DefaultSectorBrush;
@@ -11828,7 +11828,7 @@ public partial class SettingsWindow : Window
 			{
 				text2 = ConfigManager.CurrentConfig.UiStyle ?? "ClassicRing";
 			}
-			IRadialStyleRenderer radialStyleRenderer = StyleRendererFactory.CreateRenderer(text2);
+			IRadialStyleRenderer radialStyleRenderer = StyleRendererFactory.CreateRenderer(text2, ConfigManager.CurrentConfig, true);
 			radialStyleRenderer.Initialize(text, ConfigManager.CurrentConfig);
 			if (radialStyleRenderer.DefaultSectorBrush is SolidColorBrush solidColorBrush && SubCustomSectorBgTextBox != null)
 			{
@@ -12360,7 +12360,7 @@ public partial class SettingsWindow : Window
 		}
 		else
 		{
-			IRadialStyleRenderer radialStyleRenderer = StyleRendererFactory.CreateRenderer(ConfigManager.CurrentConfig.UiStyle ?? "ClassicRing");
+			IRadialStyleRenderer radialStyleRenderer = StyleRendererFactory.CreateRenderer(ConfigManager.CurrentConfig.UiStyle ?? "ClassicRing", ConfigManager.CurrentConfig);
 			radialStyleRenderer.Initialize(text, ConfigManager.CurrentConfig);
 			if (radialStyleRenderer.DefaultSectorBrush is SolidColorBrush solidColorBrush)
 			{
@@ -13931,7 +13931,7 @@ public partial class SettingsWindow : Window
 				PopulateLayoutModeComboBox(includeInherit: true);
 				string currentMode = ((action != null && !string.IsNullOrWhiteSpace(action.LayoutMode)) ? action.LayoutMode : "Inherit");
 				SetComboBoxSelectedValue(IconLayoutModeComboBox, currentMode);
-				string currentFont = ((action != null && !string.IsNullOrWhiteSpace(action.CustomFontFamily)) ? action.CustomFontFamily : (ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI"));
+				string currentFont = ((action != null && !string.IsNullOrWhiteSpace(action.CustomFontFamily)) ? action.CustomFontFamily : ArtStyles.ArtStyleRenderer.ResolveFont(_previewStyleRenderer, ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI"));
 				SetComboBoxSelectedValue(WheelFontFamilyComboBox, currentFont);
 				if (SectorTextColorTextBox != null)
 				{
@@ -18099,6 +18099,7 @@ public partial class SettingsWindow : Window
 		try
 		{
 			LiveWheelPreviewCanvas.Children.Clear();
+            _artPreviewContents.Clear();
 			_previewSectorPaths.Clear();
 			_previewTransforms.Clear();
 			_previewAngles.Clear();
@@ -18152,8 +18153,8 @@ public partial class SettingsWindow : Window
 			string shape = ConfigManager.CurrentConfig.Shape ?? "Original";
 			string text3 = ConfigManager.CurrentConfig.IconLayoutMode ?? "IconAndText";
 			bool flag = ConfigManager.CurrentConfig.ShowText && text3 != "IconOnly";
-			_previewStyleRenderer = StyleRendererFactory.CreateRenderer(text);
-			_previewStyleRenderer.Initialize(text2, ConfigManager.CurrentConfig);
+			_previewStyleRenderer = StyleRendererFactory.CreateRenderer(text, ArtPreviewConfig);
+			_previewStyleRenderer.Initialize(text2, ArtPreviewConfig);
 			_previewDefaultBrush = _previewStyleRenderer.DefaultSectorBrush;
 			_previewHighlightBrush = _previewStyleRenderer.HighlightSectorBrush;
 			_previewBorderBrush = _previewStyleRenderer.SectorBorderBrush;
@@ -18161,7 +18162,7 @@ public partial class SettingsWindow : Window
 			_previewTextBrush = _previewStyleRenderer.TextColorBrush;
 			_previewCoreBgBrush = _previewStyleRenderer.CoreBgBrush;
 			_previewCoreBorderBrush = _previewStyleRenderer.CoreBorderBrush;
-			if (CustomColorExpander != null && CustomColorExpander.IsExpanded)
+			if (_previewStyleRenderer is not ArtStyles.ArtStyleRenderer && CustomColorExpander != null && CustomColorExpander.IsExpanded)
 			{
 				try
 				{
@@ -18203,8 +18204,8 @@ public partial class SettingsWindow : Window
 			{
 				try
 				{
-					_previewSubStyleRenderer = StyleRendererFactory.CreateRenderer(text4);
-					_previewSubStyleRenderer.Initialize(text5, ConfigManager.CurrentConfig);
+					_previewSubStyleRenderer = StyleRendererFactory.CreateRenderer(text4, ArtPreviewConfig, true);
+					_previewSubStyleRenderer.Initialize(text5, ArtPreviewConfig);
 					_previewSubDefaultBrush = _previewSubStyleRenderer.DefaultSectorBrush;
 					_previewSubHighlightBrush = _previewSubStyleRenderer.HighlightSectorBrush;
 					_previewSubBorderBrush = _previewSubStyleRenderer.SectorBorderBrush;
@@ -19094,7 +19095,7 @@ public partial class SettingsWindow : Window
 					} * num7;
 					string sectorFont = (action != null && !string.IsNullOrWhiteSpace(action.CustomFontFamily))
 						? action.CustomFontFamily
-						: (ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI");
+						: ArtStyles.ArtStyleRenderer.ResolveFont(_previewStyleRenderer, ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI");
 					textElement = new TextBlock
 					{
 						Text = previewText,
@@ -19178,6 +19179,8 @@ public partial class SettingsWindow : Window
 					stackPanel.Opacity = 0.65;
 				}
 				grid2.Children.Add(stackPanel);
+                _artPreviewContents.Add(stackPanel);
+                foreach (FrameworkElement content in stackPanel.Children) ArtStyles.ArtStyleRenderer.RememberContent(content, sectorPreviewTextBrush, !string.IsNullOrWhiteSpace(action?.CustomTextColor));
 				Canvas.SetLeft(grid2, num26 - num33 / 2.0);
 				Canvas.SetTop(grid2, num27 - num34 / 2.0);
 				System.Windows.Controls.Panel.SetZIndex(grid2, 10);
@@ -19461,7 +19464,7 @@ public partial class SettingsWindow : Window
 					{
 						string subFontFamily = (actionItem2 != null && !string.IsNullOrWhiteSpace(actionItem2.CustomFontFamily))
 							? actionItem2.CustomFontFamily
-							: (ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI");
+							: ArtStyles.ArtStyleRenderer.ResolveFont(_previewSubStyleRenderer, ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI");
 						double subFontSize = Math.Max(5.0, ((subLayout == "TextOnly") ? (subBaseFontSize + 1.0) : subBaseFontSize) * 0.88 * num7);
 						int subCharLen = actionItem2.Name.Length;
 						string subPreviewText = SectorTextFormatter.FormatSectorText(actionItem2.Name, num19, isSubWheel: true);
@@ -19503,6 +19506,7 @@ public partial class SettingsWindow : Window
 						Opacity = 1.0
 					};
 					grid3.Children.Add(stackPanel2);
+                    foreach (FrameworkElement content in stackPanel2.Children) ArtStyles.ArtStyleRenderer.RememberContent(content, subSectorPreviewTextBrush, !string.IsNullOrWhiteSpace(actionItem2?.CustomTextColor));
 					Canvas.SetLeft(grid3, num41 - num45 / 2.0);
 					Canvas.SetTop(grid3, num42 - num46 / 2.0);
 					System.Windows.Controls.Panel.SetZIndex(grid3, 50);
@@ -19764,11 +19768,11 @@ public partial class SettingsWindow : Window
 							{
 								if (child is System.Windows.Shapes.Path path4)
 								{
-									path4.Fill = Brushes.White;
+									path4.Fill = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, path4, true, Brushes.White);
 								}
 								else if (child is TextBlock textBlock)
 								{
-									textBlock.Foreground = Brushes.White;
+									textBlock.Foreground = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, textBlock, true, Brushes.White);
 									textBlock.FontWeight = FontWeights.SemiBold;
 								}
 							}
@@ -19798,11 +19802,11 @@ public partial class SettingsWindow : Window
 							{
 								if (child2 is System.Windows.Shapes.Path path5)
 								{
-									path5.Fill = _previewSubTextBrush ?? _previewTextBrush;
+									path5.Fill = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, path5, false, _previewSubTextBrush ?? _previewTextBrush);
 								}
 								else if (child2 is TextBlock textBlock2)
 								{
-									textBlock2.Foreground = _previewSubTextBrush ?? _previewTextBrush;
+									textBlock2.Foreground = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, textBlock2, false, _previewSubTextBrush ?? _previewTextBrush);
 									textBlock2.FontWeight = FontWeights.Normal;
 								}
 							}
@@ -19830,11 +19834,11 @@ public partial class SettingsWindow : Window
 						{
 							if (child3 is System.Windows.Shapes.Path path6)
 							{
-								path6.Fill = _previewSubTextBrush ?? _previewTextBrush;
+								path6.Fill = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, path6, false, _previewSubTextBrush ?? _previewTextBrush);
 							}
 							else if (child3 is TextBlock textBlock3)
 							{
-								textBlock3.Foreground = _previewSubTextBrush ?? _previewTextBrush;
+								textBlock3.Foreground = ArtStyles.ArtStyleRenderer.ContentBrush(_previewSubStyleRenderer, textBlock3, false, _previewSubTextBrush ?? _previewTextBrush);
 								textBlock3.FontWeight = FontWeights.Normal;
 							}
 						}
@@ -19913,7 +19917,8 @@ public partial class SettingsWindow : Window
 
 	private void ApplyPreviewSelectedVisuals()
 	{
-		bool isSlotMode = (LayoutTargetSlotRadio != null && LayoutTargetSlotRadio.IsChecked == true && _selectedLayoutSlotIndex >= 0);
+		RefreshArtPreviewText();
+        bool isSlotMode = (LayoutTargetSlotRadio != null && LayoutTargetSlotRadio.IsChecked == true && _selectedLayoutSlotIndex >= 0);
 		
 		if (_previewSectorPaths != null)
 		{
@@ -19991,6 +19996,7 @@ public partial class SettingsWindow : Window
 
 	private void ApplySubSectorGlow(System.Windows.Shapes.Path path, bool isHighlighted)
 	{
+        if (_previewSubStyleRenderer is ArtStyles.ArtStyleRenderer art) { art.ApplySectorHighlight(path, isHighlighted); return; }
 		if (!isHighlighted)
 		{
 			path.Effect = null;

@@ -48,7 +48,55 @@ internal static class ArtStyleTests
             Check(second.Resources["CardCornerRadius"] is CornerRadius { TopLeft: 12 }, "legacy metrics restored after leaving art style");
             first.Close(); second.Close();
         }
+        RunRendererTests();
         return Summary();
+    }
+    private static void RunRendererTests()
+    {
+        var c = JsonSerializer.Deserialize<AppConfig>("{\"SelectedArtStyleId\":\"paper\"}")!;
+        SetConfig(c);
+        var factory = typeof(StyleRendererFactory).GetMethods().FirstOrDefault(m => m.Name == "CreateRenderer" && m.GetParameters().Length == 3);
+        Check(factory != null, "wheel factory supports art style and tier context");
+        if (factory == null) return;
+        IRadialStyleRenderer Create(bool sub) => (IRadialStyleRenderer)factory.Invoke(null, ["ClassicRing", c, sub])!;
+        var wheel = Create(false); wheel.Initialize("Light",c);
+        Check(((SolidColorBrush)wheel.DefaultSectorBrush).Color.ToString() == "#FFFFFCF5", "wheel uses paper palette");
+        Check(((SolidColorBrush)wheel.DefaultSectorBrush).IsFrozen, "wheel brushes frozen");
+        var path = new System.Windows.Shapes.Path(); wheel.ApplySectorHighlight(path,true);
+        Check(path.Effect == null || path.Effect.IsFrozen, "wheel effect frozen");
+        c.ArtStyleFollowsWheel = false;
+        Check(Create(false).GetType().Name == "ClassicRingRenderer", "follow disabled retains legacy renderer");
+        c.ArtStyleFollowsWheel = true;
+        c.UseIndependentSubWheelTheme = true;
+        Check(Create(true).GetType().Name == "ClassicRingRenderer", "independent secondary appearance preserved");
+        c.UseIndependentSubWheelTheme = false;
+        Check(Create(true).GetType().Name == "ArtStyleRenderer", "secondary inherits whole style");
+        var custom = Call("ArtStyleService","Import",c,(string)Call("ArtStyleService","Export",All(c)[0]));
+        Put(custom,"DecorationStrength",0d); Call("ArtStyleService","Save",c,custom);
+        Call("ArtStyleService","Select",c,Value(custom,"Id"),true);
+        wheel = Create(false); wheel.Initialize("Light",c);
+        var canvas = new Canvas(); wheel.RenderDecorations(canvas,new Grid(),100,100,80,30,0);
+        Check(canvas.Children.Count == 0,"zero decoration strength draws no decoration");
+        c.SelectedArtStyleId = "obsidian";
+        c.ShowText = true; c.IconLayoutMode = "TextOnly";
+        var actions = Enumerable.Range(0,8).Select(i => new ActionItem { Name = "Action " + i, Type = "Hotkey", Parameter = "CTRL+C" }).ToList();
+        actions[1].CustomTextColor = "#FFAA00";
+        actions[0].SubActions = [new ActionItem { Name = "Sub", CustomTextColor = "#FFAA00", LayoutMode = "TextOnly" }];
+        var profile = new WheelProfile { Actions = actions, SectorCount = 8 };
+        c.Profiles = [profile];
+        var radial = new RadialWindow(new Point(400,400),profile);
+        typeof(RadialWindow).GetMethod("RebuildVisualsFromCurrentConfiguration",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(radial,[ConfigManager.ConfigurationRevision]);
+        var texts = (IEnumerable)typeof(RadialWindow).GetField("_contentTextBlocks",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(radial)!;
+        var textItems = texts.Cast<TextBlock?>().ToArray();
+        radial.HighlightSector(0,-1,false);
+        Check(((SolidColorBrush)textItems[0]!.Foreground).Color.ToString() == "#FF102421", "real wheel uses readable Obsidian hover text");
+        radial.HighlightSector(1,-1,false);
+        Check(((SolidColorBrush)textItems[1]!.Foreground).Color.ToString() == "#FFFFAA00", "real wheel preserves per-action color on hover");
+        radial.HighlightSector(0,0,true);
+        var containers = (IEnumerable)typeof(RadialWindow).GetField("_subContentContainers",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(radial)!;
+        var subText = containers.Cast<Grid>().SelectMany(g=>g.Children.OfType<StackPanel>()).SelectMany(s=>s.Children.OfType<TextBlock>()).FirstOrDefault();
+        Check(subText != null && ((SolidColorBrush)subText.Foreground).Color.ToString() == "#FFFFAA00","real secondary wheel preserves action color on hover");
+        radial.Close();
     }
     private static int Summary() { Console.WriteLine($"Art style tests: {passed} passed, {failures} failed"); return failures == 0 ? 0 : 1; }
     private static object Call(string type, string method, params object[] args)
