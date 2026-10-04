@@ -85,6 +85,11 @@ public class AppConfig
 
 	public string AppTheme { get; set; } = "Light";
 
+	/// <summary>Empty preserves legacy appearance; themes only describe visuals, never actions/geometry.</summary>
+	public string SelectedArtStyleId { get; set; } = "";
+	public bool ArtStyleFollowsWheel { get; set; } = true;
+	public List<ArtStyles.ArtStyleProfile> CustomArtStyles { get; set; } = new();
+
 	/// <summary>设置控制台界面整体缩放比例（1.0 = 100%，有效范围 0.8 ~ 2.0，按 5% 步进对齐）。</summary>
 	public double SettingsUiScale { get; set; } = 1.0;
 
