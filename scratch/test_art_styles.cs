@@ -52,6 +52,11 @@ internal static class ArtStyleTests
         }
         RunRendererTests();
         RunStudioTests(args);
+        if (args.Contains("--export-themes"))
+        {
+            Directory.CreateDirectory("themes");
+            foreach (var p in ArtStyleCatalog.GetAll(new AppConfig())) File.WriteAllText(Path.Combine("themes",p.Id+".starpie-theme.json"),ArtStyleService.Export(p));
+        }
         return Summary();
     }
     private static void RunStudioTests(string[] args)
@@ -109,7 +114,7 @@ internal static class ArtStyleTests
         SetConfig(c);
         var settings=new SettingsWindow();
         Check(settings.FindName("ThemeStudioControl") is UserControl,"studio integrated in native settings");
-        ((Grid)settings.FindName("AppearanceSettingsGrid")).Visibility=Visibility.Visible;
+        settings.SwitchToTab(1);
         var render=typeof(SettingsWindow).GetMethod("RenderLiveWheelPreview",BindingFlags.NonPublic|BindingFlags.Instance)!;
         render.Invoke(settings,null);
         var field=typeof(SettingsWindow).GetField("_previewSubContainers",BindingFlags.NonPublic|BindingFlags.Instance)!;
@@ -149,7 +154,9 @@ internal static class ArtStyleTests
     private static void Capture(FrameworkElement visual,int width,int height,string path)
     {
         visual.Measure(new Size(width,height)); visual.Arrange(new Rect(0,0,width,height)); visual.UpdateLayout();
-        var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); bitmap.Render(visual);
+        var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+        var background=new DrawingVisual(); using (var dc=background.RenderOpen()) dc.DrawRectangle(visual.TryFindResource("WindowBackgroundBrush") as Brush ?? Brushes.White,null,new Rect(0,0,width,height));
+        bitmap.Render(background); bitmap.Render(visual);
         var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream=File.Create(path); encoder.Save(stream);
     }
