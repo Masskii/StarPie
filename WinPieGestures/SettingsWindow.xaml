@@ -276,7 +276,7 @@
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
                   <Setter TargetName="segBd" Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                  <Setter Property="Foreground" Value="#FFFFFF" />
+                  <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>

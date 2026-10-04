@@ -18,7 +18,13 @@ internal static class ArtStyleTests
     [STAThread]
     public static int Main(string[] args)
     {
+        if (!args.Contains("--test-instance"))
+        {
+            Console.Error.WriteLine("Use --test-instance: refuses to run outside diagnostic isolation.");
+            return 2;
+        }
         Environment.SetEnvironmentVariable("LOCALAPPDATA", Path.Combine(Path.GetTempPath(), "StarPie-ArtStyle-Tests-" + Guid.NewGuid().ToString("N")));
+        ConfigManager.DisableAutoStartSync=true;
         _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         RunDataTests();
         if (args.Contains("--data")) return Summary();
@@ -91,6 +97,9 @@ internal static class ArtStyleTests
         studioType.GetMethod("SaveDraft_Click",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(studio,[studio,new RoutedEventArgs()]);
         Check(c.CustomArtStyles.Count == 1 && c.CustomArtStyles[0].Name == "Saved Theme","studio saves independent user theme");
         Check(c.SelectedArtStyleId == c.CustomArtStyles[0].Id,"studio applies saved theme");
+        ConfigManager.LoadConfig();
+        Check(ConfigManager.CurrentConfig.SelectedArtStyleId==c.SelectedArtStyleId && ConfigManager.CurrentConfig.CustomArtStyles.Single().Name=="Saved Theme","saved user theme survives disk reload");
+        SetConfig(c);
         var paletteBefore = ((SolidColorBrush)Application.Current.Resources["AccentPrimaryBrush"]).Color;
         var previewApi = typeof(AppConfig).Assembly.GetType("WinPieGestures.ArtStyles.ArtStyleResources")!.GetMethod("ApplyPreview");
         Check(previewApi != null,"isolated draft preview resources exist");
@@ -114,6 +123,8 @@ internal static class ArtStyleTests
         SetConfig(c);
         var settings=new SettingsWindow();
         Check(settings.FindName("ThemeStudioControl") is UserControl,"studio integrated in native settings");
+        var integrated=(ThemeStudio)settings.FindName("ThemeStudioControl");
+        typeof(ThemeStudio).GetMethod("Subscribe",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(integrated,null);
         settings.SwitchToTab(1);
         var render=typeof(SettingsWindow).GetMethod("RenderLiveWheelPreview",BindingFlags.NonPublic|BindingFlags.Instance)!;
         render.Invoke(settings,null);
@@ -121,6 +132,16 @@ internal static class ArtStyleTests
         int firstCount=((IList)field.GetValue(settings)!).Count;
         render.Invoke(settings,null);
         Check(firstCount>0 && ((IList)field.GetValue(settings)!).Count==firstCount,"repeated preview does not retain stale secondary containers");
+        var segment=(RadioButton)settings.FindName("ConfigModeSimpleRadio"); segment.ApplyTemplate();
+        foreach (var p in ArtStyleCatalog.GetAll(new AppConfig()))
+        {
+            c.SelectedArtStyleId=p.Id; ArtStyleService.NotifyChanged();
+            Check(ArtStyleResolver.Contrast(((SolidColorBrush)segment.Foreground).Color.ToString(),p.Colors.Accent)>=4.5,"selected settings control contrast "+p.Id);
+            Check(((SolidColorBrush)integrated.Resources["CardBackgroundBrush"]).Color.ToString()==ArtStyleResources.Brush(p.Colors.Surface).Color.ToString(),"studio resources refresh after switch "+p.Id);
+        }
+        c.SelectedArtStyleId="paper"; ArtStyleService.NotifyChanged();
+        typeof(ThemeStudio).GetMethod("Unsubscribe",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(integrated,null);
+        Check(!(bool)typeof(ThemeStudio).GetField("subscribed",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(integrated)!,"studio detaches language and theme listeners on unload");
         if (args.Contains("--render")) Capture((FrameworkElement)settings.Content,1220,740,Path.GetFullPath("artifacts/art-styles/settings-studio.png"));
         typeof(SettingsWindow).GetField("_isClosingForRelease",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(settings,true);
         settings.Close();

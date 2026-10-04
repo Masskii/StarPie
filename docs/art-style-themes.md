@@ -88,8 +88,8 @@
 在安装 .NET 8 SDK 的 Windows 环境运行：
 
 ```powershell
-dotnet run --project scratch/test_art_styles.csproj -c Release
-dotnet run --project scratch/test_art_styles.csproj -c Release -- --render
+dotnet run --project scratch/test_art_styles.csproj -c Release -- --test-instance
+dotnet run --project scratch/test_art_styles.csproj -c Release -- --test-instance --render
 ```
 
-验证不显示窗口，不执行用户动作，并使用独立临时配置目录。`--render` 将原生 WPF 画面保存到 `artifacts/art-styles/`，用于检查五种风格、编辑器和设置页面。完整交互回归依照 `AGENTS.md` 由用户手动执行。
+验证必须带 `--test-instance`，否则拒绝启动。验证不显示窗口、不执行用户动作，使用独立临时配置目录并禁用自启动同步。`--render` 将原生 WPF 画面保存到 `artifacts/art-styles/`，用于检查五种风格、编辑器和设置页面。完整交互回归依照 `AGENTS.md` 由用户手动执行。
