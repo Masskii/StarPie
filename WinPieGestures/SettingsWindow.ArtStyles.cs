@@ -11,6 +11,37 @@ public partial class SettingsWindow
     private AppConfig ArtPreviewConfig => _artPreviewConfig ?? ConfigManager.CurrentConfig;
     private readonly List<StackPanel> _artPreviewContents = new();
 
+    private void InitializeArtStyleStudio()
+    {
+        WeakEventManager<ArtStyleService,EventArgs>.AddHandler(ArtStyleService.Instance,nameof(ArtStyleService.Changed),ArtStyles_Changed);
+    }
+    private void ArtStyles_Changed(object? sender, EventArgs e)
+    {
+        if (_resourcesReleased) return;
+        _artPreviewConfig=null;
+        UpdateSidebarThemeVisualState(ConfigManager.CurrentConfig.AppTheme);
+        bool dark=IsCurrentThemeDark(); UpdateLogoTheme(dark); App.ApplyTrayTheme(dark);
+        if (AppearanceSettingsGrid.Visibility==Visibility.Visible) RenderLiveWheelPreview();
+        if (MappingsSettingsGrid.Visibility==Visibility.Visible) RenderMappingsWheelPreview();
+    }
+    private void ReloadArtStyleStudio()
+    {
+        _artPreviewConfig=null;
+        ThemeStudioControl?.ReloadFromConfig();
+    }
+    private void ThemeStudio_DraftPreviewChanged(object sender, ArtStyleDraftEventArgs e)
+    {
+        var c=ConfigManager.CurrentConfig;
+        _artPreviewConfig=e.Profile==null?null:new AppConfig
+        {
+            SelectedArtStyleId=e.Profile.Id, CustomArtStyles=[e.Profile.Copy()],
+            ArtStyleFollowsWheel=c.ArtStyleFollowsWheel,
+            Theme=c.Theme, UiStyle=c.UiStyle, UseIndependentSubWheelTheme=c.UseIndependentSubWheelTheme,
+            SubWheelTheme=c.SubWheelTheme, SubWheelUiStyle=c.SubWheelUiStyle
+        };
+        if (AppearanceSettingsGrid?.Visibility==Visibility.Visible) RenderLiveWheelPreview();
+    }
+
     private void RefreshArtPreviewText()
     {
         if (_previewStyleRenderer is not ArtStyleRenderer) return;

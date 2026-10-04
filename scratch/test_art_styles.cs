@@ -8,6 +8,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using WinPieGestures;
+using WinPieGestures.ArtStyles;
+using System.Windows.Media.Imaging;
 
 internal static class ArtStyleTests
 {
@@ -49,7 +51,107 @@ internal static class ArtStyleTests
             first.Close(); second.Close();
         }
         RunRendererTests();
+        RunStudioTests(args);
         return Summary();
+    }
+    private static void RunStudioTests(string[] args)
+    {
+        var studioType = typeof(AppConfig).Assembly.GetType("WinPieGestures.ArtStyles.ThemeStudio");
+        Check(studioType != null,"theme studio exists");
+        if (studioType == null) return;
+        var c = new AppConfig { SelectedArtStyleId = "paper" }; SetConfig(c);
+        var studio = (UserControl)Activator.CreateInstance(studioType)!;
+        var edit = studioType.GetMethod("BeginEdit",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        var cancel = studioType.GetMethod("CancelDraft",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        edit.Invoke(studio,[true]);
+        var font=(ComboBox)studio.FindName("FontBox"); font.ApplyTemplate();
+        Check(font.Template.FindName("PART_EditableTextBox",font) is TextBox,"font selection supports editable text template");
+        var name = (TextBox)studio.FindName("DraftNameBox");
+        name.Text = "Saved Theme";
+        string before = JsonSerializer.Serialize(c);
+        var draft = studioType.GetField("draft",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(studio)!;
+        Put(Value(draft,"Colors"),"Accent","#123456");
+        Check(JsonSerializer.Serialize(c) == before,"draft editing does not alter current config");
+        var fields=(StackPanel)studio.FindName("PaletteFields");
+        var colorInput=fields.Children.OfType<Grid>().First().Children.OfType<TextBox>().Single();
+        try
+        {
+            colorInput.Text="oops";
+            Check(!((Button)studio.FindName("SaveDraftButton")).IsEnabled,"invalid color disables save without crashing editor");
+        }
+        catch (Exception) { Check(false,"invalid color disables save without crashing editor"); }
+        cancel.Invoke(studio,null);
+        Check(JsonSerializer.Serialize(c) == before,"cancel leaves current config intact");
+        edit.Invoke(studio,[true]); name.Text = "Saved Theme";
+        studioType.GetMethod("SaveDraft_Click",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(studio,[studio,new RoutedEventArgs()]);
+        Check(c.CustomArtStyles.Count == 1 && c.CustomArtStyles[0].Name == "Saved Theme","studio saves independent user theme");
+        Check(c.SelectedArtStyleId == c.CustomArtStyles[0].Id,"studio applies saved theme");
+        var paletteBefore = ((SolidColorBrush)Application.Current.Resources["AccentPrimaryBrush"]).Color;
+        var previewApi = typeof(AppConfig).Assembly.GetType("WinPieGestures.ArtStyles.ArtStyleResources")!.GetMethod("ApplyPreview");
+        Check(previewApi != null,"isolated draft preview resources exist");
+        if (previewApi != null)
+        {
+            previewApi.Invoke(null,[new Border(),Call("ArtStyleCatalog","Find",c,"obsidian")]);
+            Check(((SolidColorBrush)Application.Current.Resources["AccentPrimaryBrush"]).Color == paletteBefore,"draft preview does not publish application resources");
+        }
+        foreach (var lang in Enum.GetValues<LanguageCode>())
+        {
+            I18n.CurrentLanguage = lang;
+            studioType.GetMethod("Refresh")!.Invoke(studio,null);
+            Check(!string.IsNullOrEmpty(((TextBlock)studio.FindName("TitleText")).Text),"studio title translated " + lang);
+            Check(ArtStyleText.Keys.All(key=>!string.IsNullOrWhiteSpace(ArtStyleText.Get(key)) && (lang!=LanguageCode.En || !System.Text.RegularExpressions.Regex.IsMatch(ArtStyleText.Get(key),"[\\u4E00-\\u9FFF]"))),"all studio strings translated " + lang);
+        }
+        if (args.Contains("--render")) RenderStyles();
+        c.AutoCheckUpdate=false; c.EnableMultiTier=true;
+        var actions=Enumerable.Range(0,8).Select(i=>new ActionItem { Name="Command "+i,Parameter="CTRL+C" }).ToList();
+        actions[0].SubActions=[new ActionItem { Name="Subcommand",Parameter="CTRL+V" }];
+        c.Profiles=[new WheelProfile { Actions=actions }];
+        SetConfig(c);
+        var settings=new SettingsWindow();
+        Check(settings.FindName("ThemeStudioControl") is UserControl,"studio integrated in native settings");
+        ((Grid)settings.FindName("AppearanceSettingsGrid")).Visibility=Visibility.Visible;
+        var render=typeof(SettingsWindow).GetMethod("RenderLiveWheelPreview",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        render.Invoke(settings,null);
+        var field=typeof(SettingsWindow).GetField("_previewSubContainers",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        int firstCount=((IList)field.GetValue(settings)!).Count;
+        render.Invoke(settings,null);
+        Check(firstCount>0 && ((IList)field.GetValue(settings)!).Count==firstCount,"repeated preview does not retain stale secondary containers");
+        if (args.Contains("--render")) Capture((FrameworkElement)settings.Content,1220,740,Path.GetFullPath("artifacts/art-styles/settings-studio.png"));
+        typeof(SettingsWindow).GetField("_isClosingForRelease",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(settings,true);
+        settings.Close();
+    }
+    private static void RenderStyles()
+    {
+        I18n.CurrentLanguage=LanguageCode.ZhCn;
+        var folder=Path.GetFullPath("artifacts/art-styles"); Directory.CreateDirectory(folder);
+        var gallery=new StackPanel { Orientation=Orientation.Horizontal };
+        foreach (var profile in ArtStyleCatalog.GetAll(new AppConfig()))
+        {
+            SetConfig(new AppConfig { SelectedArtStyleId=profile.Id });
+            var studio=new ThemeStudio { Width=440 };
+            var surface=new Border { Background=ArtStyleResources.Brush(profile.Colors.Background),Padding=new Thickness(15),Child=studio };
+            ArtStyleResources.ApplyPreview(surface,profile);
+            Capture(surface,470,920,Path.Combine(folder,profile.Id+"-studio.png"));
+            var tile=new Border { Width=300,Padding=new Thickness(20),Background=ArtStyleResources.Brush(profile.Colors.Background) };
+            var stack=new StackPanel();
+            stack.Children.Add(new TextBlock { Text=ArtStyleText.Name(profile),FontSize=24,FontWeight=FontWeights.SemiBold,Foreground=ArtStyleResources.Brush(profile.Colors.Text),Margin=new Thickness(0,0,0,18) });
+            stack.Children.Add(ArtStyleSamples.Wheel(profile,260));
+            stack.Children.Add(new TextBlock { Text=ArtStyleText.Get(profile.Id+".Desc"),TextWrapping=TextWrapping.Wrap,FontSize=14,Foreground=ArtStyleResources.Brush(profile.Colors.Muted),Margin=new Thickness(0,20,0,0) });
+            tile.Child=stack; gallery.Children.Add(tile);
+        }
+        Capture(gallery,1500,430,Path.Combine(folder,"style-gallery.png"));
+        SetConfig(new AppConfig { SelectedArtStyleId="obsidian" });
+        var editor=new ThemeStudio { Width=440 };
+        typeof(ThemeStudio).GetMethod("BeginEdit",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(editor,[true]);
+        ((Expander)editor.FindName("AdvancedPanel")).IsExpanded=true;
+        Capture(editor,440,1900,Path.Combine(folder,"theme-editor.png"));
+    }
+    private static void Capture(FrameworkElement visual,int width,int height,string path)
+    {
+        visual.Measure(new Size(width,height)); visual.Arrange(new Rect(0,0,width,height)); visual.UpdateLayout();
+        var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); bitmap.Render(visual);
+        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream=File.Create(path); encoder.Save(stream);
     }
     private static void RunRendererTests()
     {
@@ -141,6 +243,7 @@ internal static class ArtStyleTests
         bad = JsonNode.Parse(original)!; bad["theme"] = null; Reject(c, bad.ToJsonString(), "reject null theme");
         Reject(c, "{}", "reject missing envelope");
         Reject(c, new string(' ', 65537), "reject oversized file");
+        Reject(c, "{\"schemaVersion\":1,\"theme\":{\"name\":\"Unicode\"},\"ignored\":\""+new string('雪',23000)+"\"}", "reject oversized UTF-8 file");
         var minimal = Call("ArtStyleService", "Import", c, "{\"schemaVersion\":1,\"theme\":{\"name\":\"Minimal\"}}");
         Check(Value(minimal, "Colors") != null, "missing optional fields use defaults");
         var data = All(c).Last(); Put(data, "ShadowBlur", double.NaN);

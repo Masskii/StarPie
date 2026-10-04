@@ -7,7 +7,7 @@ namespace WinPieGestures.ArtStyles;
 
 public static class ArtStyleResources
 {
-    public static void Apply(FrameworkElement root, ArtStyleProfile profile)
+    public static void Apply(FrameworkElement root, ArtStyleProfile profile, bool publish = true)
     {
         var c = profile.Colors;
         string hover = Blend(c.Surface, c.Accent, .08);
@@ -31,33 +31,35 @@ public static class ArtStyleResources
             ["PreviewCanvasBackgroundBrush"] = c.Background, ["PreviewCanvasBorderBrush"] = c.Border,
             ["PreviewGridLineBrush"] = Blend(c.Background, c.Border, .42)
         };
-        foreach (var pair in colors) Set(root, pair.Key, Brush(pair.Value));
+        foreach (var pair in colors) Set(root, pair.Key, Brush(pair.Value), publish);
         SetMetrics(root, profile.CornerRadius, profile.StrokeWidth, profile.FontFamily,
-            profile.ShadowBlur, profile.ShadowDepth, profile.ShadowOpacity);
+            profile.ShadowBlur, profile.ShadowDepth, profile.ShadowOpacity, publish);
     }
+
+    public static void ApplyPreview(FrameworkElement root, ArtStyleProfile profile) => Apply(root, profile, false);
 
     public static void ResetMetrics(FrameworkElement root) => SetMetrics(root, 12, 1,
         "Segoe UI, Microsoft YaHei UI", 12, 1, .03);
 
     private static void SetMetrics(FrameworkElement root, double radius, double stroke, string font,
-        double blur, double depth, double opacity)
+        double blur, double depth, double opacity, bool publish = true)
     {
-        Set(root, "CardCornerRadius", new CornerRadius(radius));
-        Set(root, "ControlCornerRadius", new CornerRadius(Math.Min(12, radius * .6)));
-        Set(root, "ArtBorderThickness", new Thickness(stroke));
-        Set(root, "ArtFontFamily", new FontFamily(font));
+        Set(root, "CardCornerRadius", new CornerRadius(radius), publish);
+        Set(root, "ControlCornerRadius", new CornerRadius(Math.Min(12, radius * .6)), publish);
+        Set(root, "ArtBorderThickness", new Thickness(stroke), publish);
+        Set(root, "ArtFontFamily", new FontFamily(font), publish);
         var effect = new DropShadowEffect { BlurRadius = blur, ShadowDepth = depth, Opacity = opacity, Color = Colors.Black };
         effect.Freeze();
-        Set(root, "CardShadowEffect", effect);
-        Set(root, "ChipShadowSoftEffect", effect);
-        Set(root, "ChipShadowEffect", effect);
+        Set(root, "CardShadowEffect", effect, publish);
+        Set(root, "ChipShadowSoftEffect", effect, publish);
+        Set(root, "ChipShadowEffect", effect, publish);
         if (root is Control control) control.SetResourceReference(Control.FontFamilyProperty, "ArtFontFamily");
     }
 
-    private static void Set(FrameworkElement root, string key, object value)
+    private static void Set(FrameworkElement root, string key, object value, bool publish = true)
     {
         root.Resources[key] = value;
-        if (Application.Current != null) Application.Current.Resources[key] = value;
+        if (publish && Application.Current != null) Application.Current.Resources[key] = value;
     }
 
     public static SolidColorBrush Brush(string hex, double opacity = 1)

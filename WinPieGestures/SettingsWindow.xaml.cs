@@ -531,6 +531,7 @@ public partial class SettingsWindow : Window
 		_isUpdatingUi = true;
 		_isUpdatingFocusUi = true;
 		InitializeComponent();
+		InitializeArtStyleStudio();
 		PluginHost.PluginAvailabilityChanged += HandlePluginAvailabilityChanged;
 		try
 		{
@@ -841,6 +842,7 @@ public partial class SettingsWindow : Window
 
 	private void LoadConfigToUi()
 	{
+		ReloadArtStyleStudio();
 		ProfilesListBox.ItemsSource = null;
 		ProfilesListBox.ItemsSource = ConfigManager.CurrentConfig.Profiles;
 		if (MappingsProfileComboBox != null)
@@ -16285,7 +16287,8 @@ public partial class SettingsWindow : Window
 		_isUpdatingUi = true;
 		try
 		{
-			string tag = themeTag ?? "System";
+			var art = ArtStyles.ArtStyleResolver.Resolve(ConfigManager.CurrentConfig);
+			string tag = art == null ? themeTag ?? "System" : "ArtStyle";
 			if (ThemeBtnSystem != null) ThemeBtnSystem.IsChecked = string.Equals(tag, "System", StringComparison.OrdinalIgnoreCase);
 			if (ThemeBtnLight != null) ThemeBtnLight.IsChecked = string.Equals(tag, "Light", StringComparison.OrdinalIgnoreCase);
 			if (ThemeBtnDark != null) ThemeBtnDark.IsChecked = string.Equals(tag, "Dark", StringComparison.OrdinalIgnoreCase);
@@ -16295,6 +16298,7 @@ public partial class SettingsWindow : Window
 			{
 				SidebarThemeCollapsedIcon.Text = tag.ToLowerInvariant() switch
 				{
+					"artstyle" => "🎨",
 					"light" => "☀️",
 					"dark" => "🌙",
 					"titaniumgray" => "⚙️",
@@ -16305,6 +16309,7 @@ public partial class SettingsWindow : Window
 			{
 				string name = tag.ToLowerInvariant() switch
 				{
+					"artstyle" => ArtStyles.ArtStyleText.Name(art!),
 					"light" => I18n.T("SidebarThemeLight"),
 					"dark" => I18n.T("SidebarThemeDark"),
 					"titaniumgray" => I18n.T("SidebarThemeGray"),
@@ -18104,6 +18109,7 @@ public partial class SettingsWindow : Window
 			_previewTransforms.Clear();
 			_previewAngles.Clear();
 			_previewSubSectorPaths.Clear();
+			_previewSubContainers.Clear();
 			_previewSubTransforms.Clear();
 			_previewSubParentIndices.Clear();
 			_previewSubIndices.Clear();

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using System.Text.Json;
 
 namespace WinPieGestures.ArtStyles;
@@ -22,7 +23,7 @@ public sealed class ArtStyleService
 		}
 		Instance.Changed?.Invoke(Instance, EventArgs.Empty);
 	}
-    public const int MaxFileCharacters = 65536;
+    public const int MaxFileBytes = 65536;
     private const int MaxUserThemes = 128;
     private static readonly JsonSerializerOptions FileOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, WriteIndented = true, MaxDepth = 16 };
 
@@ -65,7 +66,7 @@ public sealed class ArtStyleService
 
     public static ArtStyleProfile Import(AppConfig config, string json)
     {
-        if (json.Length > MaxFileCharacters) throw new InvalidDataException("file: limit 64 KiB");
+        if (Encoding.UTF8.GetByteCount(json) > MaxFileBytes) throw new InvalidDataException("file: limit 64 KiB");
         ThemeFile? file;
         try { file = JsonSerializer.Deserialize<ThemeFile>(json.TrimStart('\uFEFF'), FileOptions); }
         catch (JsonException e) { throw new InvalidDataException("JSON: " + e.Path, e); }
