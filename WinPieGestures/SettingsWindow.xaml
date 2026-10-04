@@ -69,7 +69,7 @@
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="TextBoxBase.CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Padding" Value="8,0" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
@@ -112,7 +112,7 @@
         <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Padding" Value="4" />
         <Setter Property="Template">
           <Setter.Value>
@@ -135,7 +135,7 @@
       <Style x:Key="ModernButtonStyle" TargetType="{x:Type Button}">
         <Setter Property="Background" Value="{DynamicResource ButtonDefaultBgBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultFgBrush}" />
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Padding" Value="14,6" />
@@ -166,7 +166,7 @@
       <Style x:Key="ModernContextMenuStyle" TargetType="{x:Type ContextMenu}">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Padding" Value="4" />
         <Setter Property="HasDropShadow" Value="True" />
         <Setter Property="Template">
@@ -331,7 +331,7 @@
         <Setter Property="Height" Value="32" />
         <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="Padding" Value="10,4" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
@@ -503,7 +503,7 @@
       <Style x:Key="CardSegmentRadioStyle" TargetType="{x:Type RadioButton}">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="FrameworkElement.Cursor" Value="Hand" />
@@ -534,7 +534,7 @@
         <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Height" Value="30" />
         <Setter Property="Template">
           <Setter.Value>
@@ -730,7 +730,7 @@
           </StackPanel>
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="0,0,10,32">
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -786,7 +786,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -838,7 +838,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -877,7 +877,7 @@
                     <Slider Name="SubWheelTriggerDistanceSlider" Minimum="30" Maximum="260" SmallChange="1" LargeChange="5" Value="141" ValueChanged="SubWheelTriggerDistanceSlider_ValueChanged" />
                     <TextBlock Name="SubWheelTriggerDistDesc" Text="调节光标划出距离中心多远时展开二级级联菜单。数值较小时轻划即可展开，数值较大时需向外划出更远距离才展开二级，防止快速触发一级动作时产生视觉干扰。" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,2,0,0" />
                   </StackPanel>
-                  <Border Name="Tab0_VolumeDragCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16" Margin="0,8,0,0" SnapsToDevicePixels="True" UseLayoutRounding="True">
+                  <Border Name="Tab0_VolumeDragCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16" Margin="0,8,0,0" SnapsToDevicePixels="True" UseLayoutRounding="True">
                     <StackPanel>
                       <TextBlock Name="VolumeDragTitleText" Text="音量拖距调音" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                       <TextBlock Name="VolumeDragDescText" Text="长按音量加/减扇区向外拖出可连续调音，以下距离参数实时生效，无需重启。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,8" TextWrapping="Wrap" />
@@ -909,7 +909,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Name="Tab0_MouseGesturesCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Name="Tab0_MouseGesturesCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -972,7 +972,7 @@
                       <ItemsControl Name="GestureMappingsItemsControl">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate>
-                            <Border Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,6" Margin="0,0,0,8" SnapsToDevicePixels="True">
+                            <Border Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,6" Margin="0,0,0,8" SnapsToDevicePixels="True">
                               <Grid>
                                 <Grid.RowDefinitions>
                                   <RowDefinition Height="Auto" />
@@ -1114,7 +1114,7 @@
                 </StackPanel>
               </StackPanel>
             </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1138,7 +1138,7 @@
                 </StackPanel>
               </Border>
               <!-- 轮盘触发与交互音效系统 (Audio Haptic Feedback) -->
-              <Border Name="Tab0_SoundEffectsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Name="Tab0_SoundEffectsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1288,7 +1288,7 @@
                   </StackPanel>
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1506,7 +1506,7 @@
                 </StackPanel>
               </Border>
               <!-- 屏幕边缘呼出智能防溢出与光标自动对齐设置 -->
-              <Border Name="Tab0_ScreenEdgeCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True">
+              <Border Name="Tab0_ScreenEdgeCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1574,7 +1574,7 @@
                 </StackPanel>
               </Border>
 
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1599,7 +1599,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -1691,7 +1691,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                           <TextBlock Name="Tab0_ProcessCustomTriggerCardTitle" Text="🎯 进程专属唤醒按键配置：" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                          <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,2" Margin="6,0,0,0" VerticalAlignment="Center">
+                          <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,2" Margin="6,0,0,0" VerticalAlignment="Center">
                             <TextBlock Name="SelectedProcessNameLabel" Text="sldworks.exe" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AccentPrimaryBrush}" />
                           </Border>
                         </StackPanel>
@@ -1759,7 +1759,7 @@
               <StackPanel Margin="0,0,6,32">
                 <art:ThemeStudio x:Name="ThemeStudioControl" DraftPreviewChanged="ThemeStudio_DraftPreviewChanged" />
 
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,12">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,12">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -1787,7 +1787,7 @@
                         <Button Name="RenameCustomColorPresetButton" Content="✏️ 重命名预设" Style="{StaticResource ModernButtonStyle}" Height="28" Margin="6,0,0,0" Padding="10,0" Visibility="Collapsed" ToolTip="重命名当前选中的自定义配色方案预设" Click="RenameCustomColorPresetButton_Click" />
                         <Button Name="DeleteCustomColorPresetButton" Content="🗑️ 删除预设" Style="{StaticResource ModernButtonStyle}" Height="28" Margin="6,0,0,0" Padding="10,0" Visibility="Collapsed" ToolTip="删除当前选中的自定义配色方案预设" Click="DeleteCustomColorPresetButton_Click" />
                       </StackPanel>
-                      <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16,12" Margin="0,0,0,12">
+                      <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16,12" Margin="0,0,0,12">
                         <UIElement.Effect>
                           <DynamicResource ResourceKey="CardShadowEffect" />
                         </UIElement.Effect>
@@ -1957,7 +1957,7 @@
                             <Button Name="RenameSubCustomColorPresetButton" Content="✏️ 重命名预设" Style="{StaticResource ModernButtonStyle}" Height="28" Margin="6,0,0,0" Padding="10,0" Visibility="Collapsed" ToolTip="重命名当前选中的自定义配色方案预设" Click="RenameSubCustomColorPresetButton_Click" />
                             <Button Name="DeleteSubCustomColorPresetButton" Content="🗑️ 删除预设" Style="{StaticResource ModernButtonStyle}" Height="28" Margin="6,0,0,0" Padding="10,0" Visibility="Collapsed" ToolTip="删除当前选中的自定义配色方案预设" Click="DeleteSubCustomColorPresetButton_Click" />
                           </StackPanel>
-                          <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16,12" Margin="0,0,0,12">
+                          <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16,12" Margin="0,0,0,12">
                             <UIElement.Effect>
                               <DynamicResource ResourceKey="CardShadowEffect" />
                             </UIElement.Effect>
@@ -2105,7 +2105,7 @@
                     </Border>
                   </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,12">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,12">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -2224,7 +2224,7 @@
                     </Border>
                   </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -2349,7 +2349,7 @@
                     </Border>
                   </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,12,0,0">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,12,0,0">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -2375,7 +2375,7 @@
                           <ColumnDefinition Width="*" />
                           <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,4">
+                        <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource InputBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,4">
                           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Path Name="CustomCoreIconPreviewPath" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentPrimaryBrush}" Margin="0,0,8,0" />
                             <TextBlock Name="CustomCoreIconNameLabel" Text="未选择图标" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
@@ -2493,7 +2493,7 @@
                 </Border>
 
                 <!-- 卡片 5：轮盘层数切换提示微标定制 (仅高级全量模式展示) -->
-                <Border Name="Tab1_LayerIndicatorCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,12,0,0">
+                <Border Name="Tab1_LayerIndicatorCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,12,0,0">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -2630,7 +2630,7 @@
                 </Border>
               </StackPanel>
             </ScrollViewer>
-            <Border Grid.Column="1" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
+            <Border Grid.Column="1" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
               <UIElement.Effect>
                 <DynamicResource ResourceKey="CardShadowEffect" />
               </UIElement.Effect>
@@ -2688,7 +2688,7 @@
                       </Canvas.RenderTransform>
                     </Canvas>
                     <!-- 视口缩放与平移悬浮工具栏 -->
-                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="3,2">
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="3,2">
                       <Border.Effect>
                         <DynamicResource ResourceKey="ChipShadowEffect" />
                       </Border.Effect>
@@ -2768,7 +2768,7 @@
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,32">
               <StackPanel>
                 <!-- 卡片 1：方案选择与管理卡片 -->
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="14" Margin="0,0,0,12">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="14" Margin="0,0,0,12">
                   <Grid>
                     <Grid.RowDefinitions>
                       <RowDefinition Height="Auto" />
@@ -2854,7 +2854,7 @@
                 </Border>
 
                 <!-- 卡片 2：动作聚焦精调卡片 (Focus Editor Card) -->
-                <Border Name="FocusActionEditorBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16" Margin="0,0,0,12">
+                <Border Name="FocusActionEditorBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="16" Margin="0,0,0,12">
                   <StackPanel>
                     <StackPanel Name="FocusSingleSlotPanel">
                       <!-- 顶部槽位导航与微标 -->
@@ -2915,7 +2915,7 @@
                         </Grid>
 
                         <!-- 自定义中心图案优先提示条 -->
-                        <Border Name="CenterPatternPriorityTip" Visibility="Collapsed" Margin="0,6,0,0" Background="#18F59E0B" BorderBrush="#80F59E0B" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,5">
+                        <Border Name="CenterPatternPriorityTip" Visibility="Collapsed" Margin="0,6,0,0" Background="#18F59E0B" BorderBrush="#80F59E0B" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,5">
                           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="🎨" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
                             <TextBlock x:Name="CenterPatternPriorityNoticeText" Text="当前已启用自定义中心图案，轮盘中心将优先展示该图案；在中心死区内松开鼠标仍会照常触发本功能。" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -2979,7 +2979,7 @@
                     <!-- 模块 2：触发动作类型选择与参数配置 -->
                     <Border Name="FocusActionTypeAndParamsBorder" Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                       <StackPanel>
-                        <Border Name="FocusActionUnavailableBanner" Background="#1ADF2626" BorderBrush="#DC2626" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,7" Margin="0,0,0,10" Visibility="Collapsed">
+                        <Border Name="FocusActionUnavailableBanner" Background="#1ADF2626" BorderBrush="#DC2626" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,7" Margin="0,0,0,10" Visibility="Collapsed">
                           <TextBlock Name="FocusActionUnavailableText" FontSize="11.5" Foreground="#DC2626" TextWrapping="Wrap" />
                         </Border>
                         <Grid Margin="0,0,0,10">
@@ -3215,28 +3215,28 @@
 
                           <!-- 子模式 2: 循环/反向平铺 -->
                           <StackPanel Name="FocusWindowCycleSubPanel" Visibility="Collapsed" Margin="0,2,0,0">
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
                               <TextBlock x:Name="FocusTileCycleHintText" Text="💡 触发手势时，自动在下方「平铺窗口设置」中勾选的排布列表中循环轮换下一个布局。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                             </Border>
                           </StackPanel>
 
                           <!-- 子模式 3: 还原平铺快照 -->
                           <StackPanel Name="FocusWindowRestoreSubPanel" Visibility="Collapsed" Margin="0,2,0,0">
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
                               <TextBlock x:Name="FocusTileRestoreHintText" Text="⏪ 还原所有窗口到平铺前的初始大小与屏幕坐标位置。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                             </Border>
                           </StackPanel>
 
                           <!-- 子模式 4: 窗口置顶 -->
                           <StackPanel Name="FocusWindowTopmostSubPanel" Visibility="Collapsed" Margin="0,2,0,0">
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
                               <TextBlock x:Name="FocusTileTopmostHintText" Text="📌 将当前鼠标所在窗口或前台活动窗口固定置顶于最前（再次触发即可恢复）。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                             </Border>
                           </StackPanel>
 
                           <!-- 子模式 5: 移到下一屏 -->
                           <StackPanel Name="FocusWindowMoveMonitorSubPanel" Visibility="Collapsed" Margin="0,2,0,0">
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6">
                               <TextBlock x:Name="FocusTileMoveMonitorHintText" Text="🖥️ 将当前活动窗口移动至下一个物理显示器对应的工作区位置。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                             </Border>
                           </StackPanel>
@@ -3297,7 +3297,7 @@
                               <ColumnDefinition Width="Auto" />
                               <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6" VerticalAlignment="Center">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6" VerticalAlignment="Center">
                               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="✂️" FontSize="14" FontFamily="Segoe UI Emoji, Segoe UI Symbol, Segoe UI" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <TextBlock Name="FocusOcrStatusText" Text="默认调用 Windows 本地原生 OCR 离线引擎 (0延迟 · 隐私安全)" FontSize="11.5" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
@@ -3315,7 +3315,7 @@
                               <ColumnDefinition Width="*" />
                               <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6" VerticalAlignment="Center">
+                            <Border Background="{DynamicResource InputBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="10,6" VerticalAlignment="Center">
                               <Grid>
                                 <Grid.ColumnDefinitions>
                                   <ColumnDefinition Width="Auto" />
@@ -3532,7 +3532,7 @@
             </GridSplitter>
 
             <!-- 右栏：实时交互画布 (Interactive Wheel Canvas) -->
-            <Border Grid.Column="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="14">
+            <Border Grid.Column="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="14">
               <Grid>
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto" />
@@ -3590,7 +3590,7 @@
                     </Grid>
                     
                     <!-- 悬浮工具栏 (放在 ViewportContainer 之上同级，避免被 Viewport 的 Preview 事件劫持) -->
-                    <Border Name="MappingsZoomToolbarBorder" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="3,2">
+                    <Border Name="MappingsZoomToolbarBorder" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="3,2">
                       <Border.Effect>
                         <DynamicResource ResourceKey="ChipShadowEffect" />
                       </Border.Effect>
@@ -3622,7 +3622,7 @@
           <Grid Name="MappingsListModeGrid" Grid.Row="1" Visibility="Collapsed">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
               <StackPanel Margin="0,0,10,32">
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,14">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,14">
                   <Grid>
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
@@ -3641,7 +3641,7 @@
                     </StackPanel>
                   </Grid>
                 </Border>
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,14">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18" Margin="0,0,0,14">
                   <StackPanel>
                     <TextBlock x:Name="ListModeSectorHeaderTitle" Text="扇区方位数量" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                     <TextBlock x:Name="ListModeSectorHeaderDesc" Text="切换手势轮盘的切分数量。4 键最快最不易误触，8 键为标准全能方位，12 键适合功能密集场景。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,10" />
@@ -3652,7 +3652,7 @@
                     </StackPanel>
                   </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
+                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="18">
                   <StackPanel>
                     <TextBlock x:Name="ListModeActionListHeaderTitle" Text="扇区动作映射列表" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                     <TextBlock x:Name="ListModeActionListHeaderDesc1" Text="为每个方位指定触发动作与图标。支持热键组合（如 Ctrl+C）、启动本地程序与系统级操作。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,2" />
@@ -3779,7 +3779,7 @@
                 </Border>
 
                 <!-- 平铺窗口全局设置 (可折叠收纳) -->
-                <Border Name="Tab2_TileSettingsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20,16" Margin="0,0,0,14">
+                <Border Name="Tab2_TileSettingsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20,16" Margin="0,0,0,14">
                   <UIElement.Effect>
                     <DynamicResource ResourceKey="CardShadowEffect" />
                   </UIElement.Effect>
@@ -3799,7 +3799,7 @@
                         </StackPanel>
                         <TextBlock Name="TileGlobalDescText" Text="「平铺窗口」动作的全局行为（屏幕边距、窗口间距、包含最小化窗口、排除名单与多布局循环切换）。" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,0" TextWrapping="Wrap" />
                       </StackPanel>
-                      <Border Grid.Column="1" Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,4" VerticalAlignment="Center">
+                      <Border Grid.Column="1" Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8,4" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                           <TextBlock Name="TileSettingsToggleLabel" Text="展开配置" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                           <TextBlock Name="TileSettingsExpandArrow" Text="▼" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
@@ -4244,7 +4244,7 @@
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="0,0,10,36">
               <!-- Card 0: 系统在线更新与版本管理 -->
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4487,7 +4487,7 @@
                                   </StackPanel>
                                 </Grid>
                                 <TextBlock Name="RollbackChangelogHeaderLabel" Text="📋 历史更新日志摘要:" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,2,0,4" />
-                                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8">
+                                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="8">
                                   <ScrollViewer MaxHeight="90" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <TextBlock Name="RollbackChangelogText" Text="" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" LineHeight="16" />
                                   </ScrollViewer>
@@ -4502,7 +4502,7 @@
                 </StackPanel>
               </Border>
 
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4529,7 +4529,7 @@
               </Border>
 
               <!-- Card: OCR 截屏识字与智能接口设置 -->
-              <Border Name="Tab3_OcrCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Name="Tab3_OcrCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4554,7 +4554,7 @@
                   </StackPanel>
                 </Grid>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4588,7 +4588,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Name="UacWarningCard" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Name="UacWarningCard" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4607,7 +4607,7 @@
                   <Button Name="ElevateButton" Grid.Column="1" Content="提升权限" Style="{StaticResource ModernButtonStyle}" Height="32" Padding="14,0" VerticalAlignment="Center" Click="ElevatePrivileges_Click" />
                 </Grid>
               </Border>
-              <Border Name="Tab3_MemoryCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Name="Tab3_MemoryCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4627,7 +4627,7 @@
                 </Grid>
               </Border>
               <!-- Card: 多配置文件方案与备份管理 -->
-              <Border Name="Tab3_BackupCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Name="Tab3_BackupCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4680,7 +4680,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-              <Border Name="Tab3_LogsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20">
+              <Border Name="Tab3_LogsCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4718,7 +4718,7 @@
           </StackPanel>
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="0,0,10,32">
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4749,7 +4749,7 @@
                   </WrapPanel>
                 </Grid>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4761,7 +4761,7 @@
                   <TextBlock Name="Tab4_Ms_180b2_P4" Text="• 🛡️ 【Tab 4 里程碑规范与防残留校验机制】：建立 XAML、C# 与 I18n 三方严格一致性自动化校验机制，杜绝界面死链与孤儿残留词条。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4773,7 +4773,7 @@
                   <TextBlock Name="Tab4_Ms_180b1_P4" Text="• 🛡️ 【惰性加载与故障保护】：完善调用租约、异步停用、能力门禁、异常隔离和端到端自检，降低插件对轮盘核心运行的影响。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4785,7 +4785,7 @@
                   <TextBlock Name="Tab4_Ms_174_P4" Text="• 🎛️ 【自定义音效合成与渲染零堆分配】：高级模式开放交互音效独立调配，纠正播放图标朝向；动画画刷冻结复用，全局鼠标钩子零堆分配，丝滑高帧。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4797,7 +4797,7 @@
                   <TextBlock Name="Tab4_Ms_174b4_P4" Text="• ⚡ 【实时运行态切层同步】：桌面划动手势与滚轮切层时，继承动作跟随层级切换毫秒级即时重新评估与渲染。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4808,7 +4808,7 @@
                   <TextBlock Name="Tab4_Ms_174b3_P3" Text="• 🌐 【占位符修复】：彻底解决高级系统设置未国际化占位符显示 raw key 文本的问题，多语言字典规范化对齐。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4820,7 +4820,7 @@
                   <TextBlock Name="Tab4_Ms_174b2_P4" Text="• 📂 【高频工作区与工程优先】：优先穿透扫描桌面、下载、文档等高频目录，常用文件即敲即出，丝滑流畅。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4832,7 +4832,7 @@
                   <TextBlock Name="Tab4_Ms_174b1_P4" Text="• 📝 【扇区长文本智能两行显示优化】：深度完善扇区长文本换行格式化算法，多词及中英混排自动规整为紧凑双行排版。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4845,7 +4845,7 @@
                   <TextBlock Name="Tab4_Ms_173_P5" Text="• 📐 【秒搜窗口自由拖拽缩放与记忆】：支持右下角点阵手柄与边缘自由拖拽调整窗口宽度与高度，并自动持久化记忆用户自定义窗口尺寸。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4858,7 +4858,7 @@
                   <TextBlock Name="Tab4_Ms_173b8_P5" Text="• 📄 【智能版面结构重建引擎】：基于词块空间几何信息，自动还原自然段落空行、同一长句智能平滑合并断行、保留表格分栏间隙，并消除汉字间误插空格。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4870,7 +4870,7 @@
                   <TextBlock Name="Tab4_Ms_173b7_P4" Text="• 🛡️ 【35ms 扇区防抖闸门】：鼠标在扇区分界线微颤时自动限频防抖，彻底消除刺耳杂音。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4880,7 +4880,7 @@
                   <TextBlock Name="Tab4_Ms_173b6_P2" Text="• 🔄 【轮盘层切换方式双向回显修复】：多层轮盘工具栏切换模式升级为现代化交互下拉框，彻底修复保存为 Tab 键切换后 UI 依然错误回显为“滚轮切换”的属性映射与通知缺陷，实现配置加载与切换的双向状态完全同步。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4892,7 +4892,7 @@
                   <TextBlock Name="Tab4_Ms_173b5_P4" Text="• 🏷️ 【完整预发布版本标识】：侧边栏、关于页、更新状态、托盘菜单与启动日志统一显示 v1.7.3-beta.5，并自动隐藏 SDK 附加的提交哈希。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14" SnapsToDevicePixels="True" UseLayoutRounding="True" RenderOptions.ClearTypeHint="Enabled">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>
@@ -4904,7 +4904,7 @@
                   <TextBlock Name="Tab4_Ms_173b4_P4" Text="• 🍃 【设置窗口释放深度修剪】：控制台关闭 30 秒进入延迟回收阶段时，强制执行工作集归还与内存整理，彻底回落至 15MB~30MB 极致轻量后台基准。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>
                   <DynamicResource ResourceKey="CardShadowEffect" />
                 </UIElement.Effect>

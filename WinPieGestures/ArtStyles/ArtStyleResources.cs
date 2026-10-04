@@ -38,8 +38,11 @@ public static class ArtStyleResources
 
     public static void ApplyPreview(FrameworkElement root, ArtStyleProfile profile) => Apply(root, profile, false);
 
-    public static void ResetMetrics(FrameworkElement root) => SetMetrics(root, 12, 1,
-        "Segoe UI, Microsoft YaHei UI", 12, 1, .03);
+    public static void ResetMetrics(FrameworkElement root)
+    {
+        SetMetrics(root, 12, 1,"Segoe UI, Microsoft YaHei UI", 12, 1, .03);
+        Set(root,"ControlCornerRadius",new CornerRadius(6));
+    }
 
     private static void SetMetrics(FrameworkElement root, double radius, double stroke, string font,
         double blur, double depth, double opacity, bool publish = true)

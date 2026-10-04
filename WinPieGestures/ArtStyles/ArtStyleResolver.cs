@@ -31,12 +31,14 @@ public static class ArtStyleResolver
         {
             string? hex = property.GetValue(profile.Colors) as string;
             // A bounded hex-only grammar prevents arbitrary converter inputs and makes the file portable.
-            if (hex == null || hex.Length is not (7 or 9) || hex[0] != '#' || !hex[1..].All(Uri.IsHexDigit)) errors.Add("colors." + property.Name);
+            if (!IsValidColor(hex)) errors.Add("colors." + property.Name);
         }
         return errors;
         void Range(double value, double min, double max, string field)
         { if (!double.IsFinite(value) || value < min || value > max) errors.Add(field); }
     }
+
+    public static bool IsValidColor(string? hex) => hex is { Length: 7 or 9 } && hex[0]=='#' && hex[1..].All(Uri.IsHexDigit);
 
     public static double Contrast(string foreground, string background)
     {

@@ -32,6 +32,7 @@ public partial class SettingsWindow
     private void ThemeStudio_DraftPreviewChanged(object sender, ArtStyleDraftEventArgs e)
     {
         var c=ConfigManager.CurrentConfig;
+        // Only the art-style selection is isolated. Renderers retain the live legacy palette and glow parameters.
         _artPreviewConfig=e.Profile==null?null:new AppConfig
         {
             SelectedArtStyleId=e.Profile.Id, CustomArtStyles=[e.Profile.Copy()],

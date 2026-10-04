@@ -47,23 +47,45 @@ internal static class ArtStyleTests
             var first = new Window(); var second = new Window();
             AppThemeManager.ApplyTheme(first,"Light"); AppThemeManager.ApplyTheme(second,"Light");
             Put(ConfigManager.CurrentConfig,"SelectedArtStyleId","obsidian");
+            var pluginWindow=new Window { FontFamily=new FontFamily("Consolas") };
+            pluginWindow.Resources["AccentPrimaryBrush"]=ArtStyleResources.Brush("#123456");
             Call("ArtStyleService","NotifyChanged");
+            Check(pluginWindow.FontFamily.Source=="Consolas" && ((SolidColorBrush)pluginWindow.Resources["AccentPrimaryBrush"]).Color.ToString()=="#FF123456","refresh preserves unowned plugin window local appearance");
             Check(((SolidColorBrush)second.Resources["WindowBackgroundBrush"]).Color.ToString() == "#FF11171B", "second host window refreshes");
             Check(AppThemeManager.CurrentEffectiveTheme == "Dark", "dark metadata controls effective mode");
             Check(((SolidColorBrush)second.Resources["TextPrimaryBrush"]).IsFrozen, "semantic brushes frozen");
             Put(ConfigManager.CurrentConfig,"SelectedArtStyleId","");
             Call("ArtStyleService","NotifyChanged");
             Check(second.Resources["CardCornerRadius"] is CornerRadius { TopLeft: 12 }, "legacy metrics restored after leaving art style");
-            first.Close(); second.Close();
+            Check(second.Resources["ControlCornerRadius"] is CornerRadius { TopLeft: 6 }, "legacy control radius restored exactly");
+            first.Close(); second.Close(); pluginWindow.Close();
         }
         RunRendererTests();
         RunStudioTests(args);
+        RunSharedMetricTests();
         if (args.Contains("--export-themes"))
         {
             Directory.CreateDirectory("themes");
             foreach (var p in ArtStyleCatalog.GetAll(new AppConfig())) File.WriteAllText(Path.Combine("themes",p.Id+".starpie-theme.json"),ArtStyleService.Export(p));
         }
         return Summary();
+    }
+    private static void RunSharedMetricTests()
+    {
+        SetConfig(new AppConfig { SelectedArtStyleId="pixel" });
+        System.Xml.Linq.XNamespace wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var source=System.Xml.Linq.XDocument.Load("WinPieGestures/App.xaml").Root!.Element(wpf+"Application.Resources")!.Element(wpf+"ResourceDictionary")!;
+        source.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns+"x","http://schemas.microsoft.com/winfx/2006/xaml");
+        source.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns+"local","clr-namespace:WinPieGestures;assembly=StarPie");
+        var dictionary=(ResourceDictionary)System.Windows.Markup.XamlReader.Parse(source.ToString());
+        var button=new Button { Content="Shared host control",Style=(Style)dictionary["ModernButtonStyle"] };
+        var root=new Border { Child=button }; ArtStyleResources.ApplyPreview(root,ArtStyleCatalog.Find(ConfigManager.CurrentConfig,"pixel")!);
+        root.Measure(new Size(240,60)); root.Arrange(new Rect(0,0,240,60)); root.UpdateLayout(); button.ApplyTemplate();
+        var frame=(Border)button.Template.FindName("border",button);
+        Check(button.BorderThickness.Left==2.5 && frame.CornerRadius.TopLeft==0,"shared application style consumes Pixel stroke and radius");
+        var dialog=new ColorPickerWindow("#123456");
+        var ok=(Button)dialog.FindName("OkButton");
+        Check(ok.BorderThickness.Left==2.5,"self-contained host dialog follows Pixel stroke"); dialog.Close();
     }
     private static void RunStudioTests(string[] args)
     {
@@ -91,6 +113,15 @@ internal static class ArtStyleTests
             Check(!((Button)studio.FindName("SaveDraftButton")).IsEnabled,"invalid color disables save without crashing editor");
         }
         catch (Exception) { Check(false,"invalid color disables save without crashing editor"); }
+        try
+        {
+            foreach(var language in Enum.GetValues<LanguageCode>())
+            {
+                I18n.CurrentLanguage=language; studioType.GetMethod("Refresh")!.Invoke(studio,null);
+            }
+            Check(!((Button)studio.FindName("SaveDraftButton")).IsEnabled,"language refresh safely preserves invalid draft color");
+        }
+        catch (Exception) { Check(false,"language refresh safely preserves invalid draft color"); }
         cancel.Invoke(studio,null);
         Check(JsonSerializer.Serialize(c) == before,"cancel leaves current config intact");
         edit.Invoke(studio,[true]); name.Text = "Saved Theme";
@@ -132,16 +163,40 @@ internal static class ArtStyleTests
         int firstCount=((IList)field.GetValue(settings)!).Count;
         render.Invoke(settings,null);
         Check(firstCount>0 && ((IList)field.GetValue(settings)!).Count==firstCount,"repeated preview does not retain stale secondary containers");
+        c.CustomColorPresets=[new CustomColorPreset { Id="preview-test",SectorBg="#FF123456",SectorBorder="#FFABCDEF",TextColor="#FFEEDDCC" }];
+        c.UseIndependentSubWheelTheme=true; c.SubWheelTheme="CustomPreset_preview-test";
+        edit.Invoke(integrated,[true]);
+        var subRenderer=(IRadialStyleRenderer)typeof(SettingsWindow).GetField("_previewSubStyleRenderer",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(settings)!;
+        Check(((SolidColorBrush)subRenderer.DefaultSectorBrush).Color.ToString()=="#FF123456","draft preview preserves saved independent secondary preset");
+        cancel.Invoke(integrated,null);
+        c.ArtStyleFollowsWheel=false; c.Theme="Custom"; c.CustomSectorBg="#FF654321";
+        edit.Invoke(integrated,[true]);
+        var mainRenderer=(IRadialStyleRenderer)typeof(SettingsWindow).GetField("_previewStyleRenderer",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(settings)!;
+        Check(((SolidColorBrush)mainRenderer.DefaultSectorBrush).Color.ToString()=="#FF654321","draft preview preserves custom main palette when follow disabled");
+        cancel.Invoke(integrated,null); c.ArtStyleFollowsWheel=true; c.UseIndependentSubWheelTheme=false; c.SubWheelTheme="FollowPrimary";
         var segment=(RadioButton)settings.FindName("ConfigModeSimpleRadio"); segment.ApplyTemplate();
+        var saveButton=(Button)settings.FindName("SaveButton");
+        var card=(Border)((FrameworkElement)((FrameworkElement)settings.FindName("VisualThemeCardTitleText")).Parent).Parent;
         foreach (var p in ArtStyleCatalog.GetAll(new AppConfig()))
         {
             c.SelectedArtStyleId=p.Id; ArtStyleService.NotifyChanged();
             Check(ArtStyleResolver.Contrast(((SolidColorBrush)segment.Foreground).Color.ToString(),p.Colors.Accent)>=4.5,"selected settings control contrast "+p.Id);
             Check(((SolidColorBrush)integrated.Resources["CardBackgroundBrush"]).Color.ToString()==ArtStyleResources.Brush(p.Colors.Surface).Color.ToString(),"studio resources refresh after switch "+p.Id);
+            Check(saveButton.BorderThickness.Left==p.StrokeWidth && card.BorderThickness.Left==p.StrokeWidth,"generic settings controls follow stroke "+p.Id);
         }
         c.SelectedArtStyleId="paper"; ArtStyleService.NotifyChanged();
         typeof(ThemeStudio).GetMethod("Unsubscribe",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(integrated,null);
         Check(!(bool)typeof(ThemeStudio).GetField("subscribed",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(integrated)!,"studio detaches language and theme listeners on unload");
+        var invalid=new ArtStyleProfile { Id="user-invalid",Name="Invalid configured style",Colors=null! };
+        var brokenConfig=new AppConfig { SelectedArtStyleId=invalid.Id,CustomArtStyles=[invalid] }; SetConfig(brokenConfig);
+        try
+        {
+            var fallbackStudio=new ThemeStudio(); edit.Invoke(fallbackStudio,[true]);
+            var safeDraft=(ArtStyleProfile)studioType.GetField("draft",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(fallbackStudio)!;
+            Check(ArtStyleResolver.Validate(safeDraft).Count==0 && brokenConfig.CustomArtStyles.Count==1,"invalid configured theme offers safe editable fallback without deleting data");
+        }
+        catch(Exception) { Check(false,"invalid configured theme offers safe editable fallback without deleting data"); }
+        SetConfig(c);
         if (args.Contains("--render")) Capture((FrameworkElement)settings.Content,1220,740,Path.GetFullPath("artifacts/art-styles/settings-studio.png"));
         typeof(SettingsWindow).GetField("_isClosingForRelease",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(settings,true);
         settings.Close();

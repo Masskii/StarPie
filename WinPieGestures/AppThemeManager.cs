@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -9,6 +10,8 @@ namespace WinPieGestures;
 
 public static class AppThemeManager
 {
+	private static readonly ConditionalWeakTable<Window, object> ThemedWindows = new();
+	public static bool IsHostThemeWindow(Window window) => window.GetType().Assembly == typeof(AppThemeManager).Assembly || ThemedWindows.TryGetValue(window, out _);
 	public static string CurrentEffectiveTheme { get; private set; } = "Light";
 
 	[DllImport("dwmapi.dll")]
@@ -18,6 +21,8 @@ public static class AppThemeManager
 	{
 		if (rootElement != null)
 		{
+			Window? themedWindow = rootElement as Window ?? Window.GetWindow(rootElement);
+			if (themedWindow != null) ThemedWindows.GetValue(themedWindow, _ => new object());
 			var art = ArtStyles.ArtStyleResolver.Resolve(ConfigManager.CurrentConfig);
 			if (art != null)
 			{

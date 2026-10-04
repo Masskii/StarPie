@@ -18,7 +18,7 @@ public sealed class ArtStyleService
 		ConfigManager.MarkConfigurationChanged();
 		if (app != null) foreach (System.Windows.Window window in app.Windows.Cast<System.Windows.Window>().ToArray())
 		{
-			if (window is RadialWindow) continue;
+			if (window is RadialWindow || !AppThemeManager.IsHostThemeWindow(window)) continue;
 			AppThemeManager.ApplyTheme(window, ConfigManager.CurrentConfig.AppTheme);
 		}
 		Instance.Changed?.Invoke(Instance, EventArgs.Empty);

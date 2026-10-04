@@ -4,7 +4,7 @@
       <Setter Property="Background" Value="{DynamicResource ButtonDefaultBgBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
       <Setter Property="Padding" Value="10,7" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Margin" Value="0,0,6,6" />
@@ -24,17 +24,17 @@
     </Style>
     <Style x:Key="StudioCombo" TargetType="ComboBox">
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="7,5" />
+      <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" /><Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" /><Setter Property="Padding" Value="7,5" />
       <Setter Property="ItemContainerStyle" Value="{StaticResource StudioComboItem}" /><Setter Property="MaxDropDownHeight" Value="220" />
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
         <Grid x:Name="ComboRoot">
           <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}"><Path Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" /></Border></ControlTemplate></ToggleButton.Template>
+            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}"><Path Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" /></Border></ControlTemplate></ToggleButton.Template>
           </ToggleButton>
           <ContentPresenter x:Name="Selection" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" IsHitTestVisible="False" Margin="7,0,30,0" VerticalAlignment="Center" />
           <TextBox x:Name="PART_EditableTextBox" Visibility="Collapsed" Background="{TemplateBinding Background}" Foreground="{TemplateBinding Foreground}" CaretBrush="{TemplateBinding Foreground}" BorderThickness="0" Margin="6,3,30,3" VerticalContentAlignment="Center" IsReadOnly="{TemplateBinding IsReadOnly}" />
           <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
-            <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="4" MinWidth="{Binding ActualWidth, ElementName=ComboRoot}" MaxHeight="{TemplateBinding MaxDropDownHeight}"><ScrollViewer CanContentScroll="True"><ItemsPresenter /></ScrollViewer></Border>
+            <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource ControlCornerRadius}" Padding="4" MinWidth="{Binding ActualWidth, ElementName=ComboRoot}" MaxHeight="{TemplateBinding MaxDropDownHeight}"><ScrollViewer CanContentScroll="True"><ItemsPresenter /></ScrollViewer></Border>
           </Popup>
         </Grid>
         <ControlTemplate.Triggers><Trigger Property="IsEditable" Value="True"><Setter TargetName="Selection" Property="Visibility" Value="Collapsed" /><Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" /></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="ComboRoot" Property="Opacity" Value="0.4" /></Trigger></ControlTemplate.Triggers>

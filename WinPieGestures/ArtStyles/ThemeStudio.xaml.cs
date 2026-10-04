@@ -76,7 +76,7 @@ public partial class ThemeStudio : UserControl
             FontLabel.Text = ArtStyleText.Get("FontFamily"); DarkBox.Content = ArtStyleText.Get("IsDark");
             DecorationLabel.Text = ArtStyleText.Get("Decoration");
             foreach (var pair in new Dictionary<Button,string> { [ApplyButton]="Apply", [NewButton]="New", [RenameButton]="Rename", [DeleteButton]="Delete", [ImportButton]="Import", [ExportButton]="Export", [SaveDraftButton]="Save", [CancelButton]="Cancel", [ResetButton]="Reset" }) pair.Key.Content = ArtStyleText.Get(pair.Value);
-            if (ArtStyleCatalog.Find(Config,selectedId) == null) selectedId = ArtStyleCatalog.DefaultId;
+            if (ArtStyleCatalog.Find(Config,selectedId) is not { } selected || ArtStyleResolver.Validate(selected).Count>0) selectedId = ArtStyleCatalog.DefaultId;
             RefreshCards();
             if (draft != null) BuildEditorFields();
             var active = ArtStyleResolver.Resolve(Config);
@@ -188,12 +188,12 @@ public partial class ThemeStudio : UserControl
         var label=new TextBlock { Text=ArtStyleText.Get("Color."+property.Name), Style=(Style)FindResource("StudioLabel"), VerticalAlignment=VerticalAlignment.Center };
         var input=new TextBox { Text=(string)property.GetValue(draft!.Colors)!, Style=(Style)FindResource("StudioInput"), MaxLength=9, MinWidth=72 };
         input.SetValue(System.Windows.Automation.AutomationProperties.AutomationIdProperty,"ArtColor"+property.Name);
-        var picker=new Button { Width=29, Height=29, Padding=new Thickness(0), Margin=new Thickness(6,0,0,0), Content="●", Style=(Style)FindResource("StudioButton"), ToolTip=label.Text, Foreground=ArtStyleResources.Brush(input.Text) };
+        var picker=new Button { Width=29, Height=29, Padding=new Thickness(0), Margin=new Thickness(6,0,0,0), Content="●", Style=(Style)FindResource("StudioButton"), ToolTip=label.Text, Foreground=ColorSwatch(input.Text) };
         input.TextChanged+=(_,_)=>
         {
             if (refreshing || draft==null) return;
             property.SetValue(draft.Colors,input.Text.Trim());
-            try { picker.Foreground=ArtStyleResources.Brush(input.Text.Trim()); } catch (FormatException) { }
+            picker.Foreground=ColorSwatch(input.Text.Trim());
             UpdatePreview();
         };
         picker.Click+=(_,_)=>
@@ -204,6 +204,7 @@ public partial class ThemeStudio : UserControl
         };
         Grid.SetColumn(input,1); Grid.SetColumn(picker,2); row.Children.Add(label); row.Children.Add(input); row.Children.Add(picker); PaletteFields.Children.Add(row);
     }
+    private static Brush ColorSwatch(string hex) => ArtStyleResolver.IsValidColor(hex) ? ArtStyleResources.Brush(hex) : Brushes.Transparent;
     private void AddMetric(string name,double min,double max)
     {
         var property=typeof(ArtStyleProfile).GetProperty(name)!;

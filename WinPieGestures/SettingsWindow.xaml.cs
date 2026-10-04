@@ -18160,7 +18160,7 @@ public partial class SettingsWindow : Window
 			string text3 = ConfigManager.CurrentConfig.IconLayoutMode ?? "IconAndText";
 			bool flag = ConfigManager.CurrentConfig.ShowText && text3 != "IconOnly";
 			_previewStyleRenderer = StyleRendererFactory.CreateRenderer(text, ArtPreviewConfig);
-			_previewStyleRenderer.Initialize(text2, ArtPreviewConfig);
+			_previewStyleRenderer.Initialize(text2, ConfigManager.CurrentConfig);
 			_previewDefaultBrush = _previewStyleRenderer.DefaultSectorBrush;
 			_previewHighlightBrush = _previewStyleRenderer.HighlightSectorBrush;
 			_previewBorderBrush = _previewStyleRenderer.SectorBorderBrush;
@@ -18211,7 +18211,7 @@ public partial class SettingsWindow : Window
 				try
 				{
 					_previewSubStyleRenderer = StyleRendererFactory.CreateRenderer(text4, ArtPreviewConfig, true);
-					_previewSubStyleRenderer.Initialize(text5, ArtPreviewConfig);
+					_previewSubStyleRenderer.Initialize(text5, ConfigManager.CurrentConfig);
 					_previewSubDefaultBrush = _previewSubStyleRenderer.DefaultSectorBrush;
 					_previewSubHighlightBrush = _previewSubStyleRenderer.HighlightSectorBrush;
 					_previewSubBorderBrush = _previewSubStyleRenderer.SectorBorderBrush;

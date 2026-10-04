@@ -13,7 +13,7 @@
       <Style x:Key="PickerBtn" TargetType="{x:Type Button}">
         <Setter Property="Background" Value="{DynamicResource ButtonDefaultBgBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ArtBorderThickness}" />
         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultFgBrush}" />
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Cursor" Value="Hand" />
