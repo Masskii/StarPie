@@ -2354,6 +2354,9 @@
                   </UIElement.Effect>
                   <StackPanel>
                     <TextBlock Name="CoreSectionTitle" Text="中心核心圆与图案文字设置" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10" />
+                    <CheckBox Name="ShowCoreCircleCheckBox" Content="显示中心核心圆" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4" Checked="ShowCoreCircleCheckBox_Changed" Unchecked="ShowCoreCircleCheckBox_Changed" />
+                    <TextBlock Name="ShowCoreCircleDescText" Text="关闭后隐藏中心圆外观但保留中心死区判定与动作功能。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" />
+                    <StackPanel Name="CoreDetailsPanel">
                     <CheckBox Name="ShowCoreIconCheckBox" Content="启用中心图案/图标显示" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,10" Checked="ShowCoreIconCheckBox_Changed" Unchecked="ShowCoreIconCheckBox_Changed" />
                     <StackPanel Name="CoreIconConfigPanel" Visibility="Visible">
                       <TextBlock Name="Tab1_CorePatternTypeLabel" Text="图案类型:" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
@@ -2488,6 +2491,7 @@
                         <TextBlock Name="CoreImagePerformanceTipText" Grid.Column="1" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" LineHeight="16" Text="提示：推荐使用 256×256 ~ 512×512 适中分辨率的图片或 SVG 矢量图。中心文字与轮盘扇区文字已完全解耦，可分别自定义色彩与字体。" />
                       </Grid>
                     </Border>
+                    </StackPanel>
                   </StackPanel>
                 </Border>
 

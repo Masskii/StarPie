@@ -1240,6 +1240,8 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("Tab1_TextOffsetXLabel", "水平 X:", "水平 X:", "Horizontal X:", "水平 X:");
 		Add("Tab1_TextOffsetYLabel", "垂直 Y:", "垂直 Y:", "Vertical Y:", "垂直 Y:");
 		Add("CoreSectionTitle", "中心核心圆与图案文字设置", "中心核心圓與圖案文字設定", "Center Core Circle & Pattern/Text Settings", "センターコア＆パターン・テキスト設定");
+		Add("ShowCoreCircleTitle", "显示中心核心圆", "顯示中心核心圓", "Show Center Core Circle", "センターコアを表示");
+		Add("ShowCoreCircleDesc", "开启后在轮盘中心显示核心圆底色、边框与图案文字；关闭后隐藏中心圆视觉元素，但依然保留中心死区防抖与中心动作判定。", "開啟後在輪盤中心顯示核心圓底色、邊框與圖案文字；關閉後隱藏中心圓視覺元素，但依然保留中心死區防抖與中心動作判定。", "When enabled, renders the center core circle, border, and pattern/text. When disabled, visually hides the core while preserving deadzone protection and center action hit testing.", "有効にするとホイール中央にコア円、境界線、パターン/テキストを表示します。無効にすると外観は非表示になりますが、デッドゾーンと中央アクションの判定は保持されます。");
 		Add("ShowCoreIconTitle", "启用中心图案/图标显示", "啟用中心圖案/圖示顯示", "Enable Center Pattern/Icon Display", "センターパターン/アイコン表示を有効化");
 		Add("Tab1_CorePatternTypeLabel", "图案类型:", "圖案類型:", "Pattern Type:", "パターンタイプ:");
 		Add("CoreIconTypeItemCrosshair", "精准十字准星", "精準十字準星", "Precision Crosshair", "高精度クロスヘア");

@@ -79,4 +79,3 @@ internal static class Program
         Console.WriteLine($"PASS: {checks} catalog/compatibility/cache checks; no network or GUI.");
     }
 }
-

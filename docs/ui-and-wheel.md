@@ -1,0 +1,69 @@
+# UI、轮盘与 DPI 规范
+
+## 极坐标与命中
+
+WPF 坐标系中：
+
+```text
+theta = atan2(deltaY, deltaX)
+```
+
+角度 0 指向正东，Y 轴向下。4/8/12 扇区按 `2π/N` 等分，既有索引与空间方向不能改变。
+
+蜂窝二级菜单禁止按欧氏圆心距离选叶片，必须比较归一化后的角距离：
+
+```text
+target = argmin(abs(NormalizeAngle(mouseAngle - leafAngle)))
+```
+
+这样左右移动总是命中同侧叶片，不随半径和视觉偏移反转。
+
+## 渲染与 DPI
+
+- `RadialWindow` 和 `Renderers/` 是轮盘绘制入口；几何计算与视觉样式分离。
+- 透明窗口、混合 DPI 和多显示器位置计算必须明确物理像素与 WPF DIP 的边界，不在同一表达式里混用。
+- 高频画刷、笔刷、几何在不可变后 `Freeze()`；避免每帧分配集合、字符串或新资源。
+- 高亮与光晕使用已有动画节奏，不能通过高频声音、同步 IO 或 Dispatcher 堆积来驱动。
+- 第 0 扇区方向、扇区编号和用户既有配置是兼容契约。
+
+## 设置控制台
+
+- 复用现有 `DynamicResource`、控件样式、间距和字体层级。
+- 简单/高级模式的差异是信息密度，不应改变配置语义。
+- 实时画布需要能反映当前编辑对象；UI 初始化时使用 `_isUpdatingUi` 等守卫，防止控件回写配置。
+- 新增 DataTemplate 文案优先绑定视图模型的本地化属性。`Name` 不能跨 DataTemplate 命名域充当可靠 i18n 护栏。
+- 插件动作 UI 固定为一个顶层“插件动作”选项和一个按插件分组的子下拉；分组头不可选择。
+
+## 主题和可访问性
+
+- `ObsidianDark`、`TitaniumGray` 下正文与控件文字对背景对比度至少 4.5:1。
+- 标题和主要文本使用项目高亮前景资源，不写与主题绑定的固定灰色。
+- 所有弹窗在 `<Window.Resources>` 内具备自包含样式，并在构造时调用：
+
+```csharp
+AppThemeManager.ApplyTheme(
+    this,
+    ConfigManager.CurrentConfig?.AppTheme ?? "System");
+```
+
+- 用户可见文案覆盖 `zh-CN`、`zh-TW`、`en-US`、`ja-JP`。新增 XAML/代码路径不得硬编码单一语言。
+
+## 快捷键录制
+
+`HotkeyRecorderBox` 必须禁用 WPF 默认焦点导航，确保 Tab 及系统组合键能够被录制：
+
+```csharp
+KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.None);
+KeyboardNavigation.SetDirectionalNavigation(this, KeyboardNavigationMode.None);
+KeyboardNavigation.SetControlTabNavigation(this, KeyboardNavigationMode.None);
+```
+
+在 `OnPreviewKeyDown` 中处理 `Key.Tab`、`Key.System` 和修饰键，不让焦点切走。
+
+## UI 改动验证
+
+1. Release 构建和相关静态护栏。
+2. 以至少浅色/深色、简中/英文检查新增区域；涉及本地化时扩展到四语系。
+3. 小窗、常用 DPI、多显示器或缩放相关场景。
+4. 动态列表的空、单项、多项、长文本和失效引用状态。
+5. 最终由用户进行视觉、手感与真实交互验收；AI 不自动运行会弹窗的 UI 套件。

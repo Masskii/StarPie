@@ -21,7 +21,8 @@ internal sealed class PluginContext : IPluginContext
         PluginRegistrationSession session,
         PluginLogger logger,
         PluginSettings settings,
-        PluginEventService events)
+        PluginEventService events,
+        PluginInstance instance)
     {
         Me = metadata;
         PluginDirectory = pluginDirectory;
@@ -46,7 +47,7 @@ internal sealed class PluginContext : IPluginContext
         Windows = new PluginWindowService(metadata.Id, metadata.Capabilities);
         ScreenCapture = new PluginScreenCaptureService(metadata.Id, metadata.Capabilities);
         System = new PluginSystemService(metadata.Id, metadata.Capabilities);
-        Wheel = new PluginWheelService(metadata.Id, metadata.Capabilities);
+        Wheel = new PluginWheelService(instance, metadata.Capabilities);
         KeyboardRemap = new PluginKeyboardRemapService(metadata.Id, metadata.Capabilities);
 
         Info = new PluginHostInfo(metadata.Capabilities);

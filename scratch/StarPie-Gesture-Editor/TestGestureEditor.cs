@@ -79,12 +79,12 @@ class Program
         };
         var vm = new GestureMappingViewModel(mapping);
 
-        Assert(vm.AggregatedType == "WebUrl", 
-            "Test1.1_LegacyUrlAggregatedType", 
+        Assert(vm.AggregatedType == "WebUrl",
+            "Test1.1_LegacyUrlAggregatedType",
             $"Expected AggregatedType 'WebUrl' for legacy 'Url', but got '{vm.AggregatedType}'");
 
-        Assert(vm.IsWebUrlType, 
-            "Test1.2_IsWebUrlTypeTrue", 
+        Assert(vm.IsWebUrlType,
+            "Test1.2_IsWebUrlTypeTrue",
             $"Expected IsWebUrlType true for legacy 'Url'");
 
         // 2. Setting AggregatedType to WebUrl
@@ -185,8 +185,8 @@ class Program
         if (propShellToolTitle != null)
         {
             string? title = (string?)propShellToolTitle.GetValue(vmDisabled);
-            Assert(title != null && title.Contains("Custom.DisabledPlugin.ToolA"), 
-                "Test3.5_DisabledToolPreservesParameter", 
+            Assert(title != null && title.Contains("Custom.DisabledPlugin.ToolA"),
+                "Test3.5_DisabledToolPreservesParameter",
                 $"Expected title to retain tool parameter, got '{title}'");
         }
     }
@@ -215,8 +215,8 @@ class Program
 
         vm.AggregatedType = "Plugin";
         Assert(vm.Type == "Plugin", "Test4.5_SwitchedBackToPlugin", $"Expected 'Plugin', got '{vm.Type}'");
-        Assert(vm.Mapping.Action.PluginActionRef != null, 
-            "Test4.6_PluginActionRefPreserved", 
+        Assert(vm.Mapping.Action.PluginActionRef != null,
+            "Test4.6_PluginActionRefPreserved",
             "PluginActionRef must NOT be destroyed when switching types");
         if (vm.Mapping.Action.PluginActionRef != null)
         {
