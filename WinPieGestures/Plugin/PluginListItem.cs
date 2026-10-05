@@ -56,6 +56,9 @@ internal sealed class PluginListItem
     /// <summary>卡片上「设置」按钮的文字。同 <see cref="EnableText"/> 的绑定理由。</summary>
     public string SettingsText { get; init; } = "";
 
+    /// <summary>卡片上「详情」按钮的文字。</summary>
+    public string DetailsText { get; init; } = "";
+
     /// <summary>
     /// 该插件是否声明了插件级参数页（SDK 1.6）。为假时卡片上不出现「设置」按钮。
     /// <para>
@@ -146,6 +149,7 @@ internal sealed class PluginListItem
             UninstallText = I18n.T("PluginsCardUninstallButton"),
             PreloadText = I18n.T("PluginsCardPreloadCheckBox"),
             SettingsText = I18n.T("PluginsCardSettingsButton"),
+            DetailsText = I18n.T("PluginsDetailButton"),
             HasSettingsPage = PluginSettingsPageService.HasPage(instance.PluginId),
             ErrorText = errorText,
             IsEnabled = entry.Enabled,

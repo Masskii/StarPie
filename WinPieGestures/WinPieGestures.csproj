@@ -14,7 +14,7 @@
     <Product>StarPie</Product>
     <Company>StarPie Studio</Company>
     <Description>StarPie - 现代化高颜值 Windows 鼠标轮盘笔势与效率管理系统</Description>
-    <Version>1.8.0-beta.4</Version>
+    <Version>1.8.0-beta.5</Version>
     <AssemblyVersion>1.8.0.0</AssemblyVersion>
     <FileVersion>1.8.0.0</FileVersion>
     <ServerGarbageCollection>false</ServerGarbageCollection>
@@ -44,9 +44,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="test_catalog" />
+    <InternalsVisibleTo Include="test_process_launch" />
     <InternalsVisibleTo Include="test_onboarding" />
     <InternalsVisibleTo Include="test_icon_cache" />
     <InternalsVisibleTo Include="test_sound_forensics" />
+    <InternalsVisibleTo Include="test_wheel_focus" />
   </ItemGroup>
 
 

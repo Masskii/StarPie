@@ -771,6 +771,7 @@ public partial class RadialWindow : Window
 		CoreGrid.Width = coreRadius * 2.0;
 		CoreGrid.Height = coreRadius * 2.0;
 		Panel.SetZIndex(CoreGrid, 5);
+		CoreGrid.Visibility = ConfigManager.CurrentConfig.ShowCoreCircle ? Visibility.Visible : Visibility.Collapsed;
 		OuterEllipse.Width = wheelRadius * 2.0 + 8.0;
 		OuterEllipse.Height = wheelRadius * 2.0 + 8.0;
 	}
@@ -793,6 +794,7 @@ public partial class RadialWindow : Window
 		ClearSubTier();
 		CoreScale.ScaleX = 1.0;
 		CoreScale.ScaleY = 1.0;
+		CoreGrid.Visibility = ConfigManager.CurrentConfig.ShowCoreCircle ? Visibility.Visible : Visibility.Collapsed;
 		CoreVolumeText.Visibility = Visibility.Collapsed;
 		CoreSelectionTextPanel.Visibility = Visibility.Collapsed;
 		CoreSelectionOverlay.Visibility = Visibility.Collapsed;
@@ -2149,7 +2151,7 @@ public partial class RadialWindow : Window
 		if (isActive)
 		{
 			CoreVolumeText.Text = "🔊 " + percent + "%";
-			CoreVolumeText.Visibility = Visibility.Visible;
+			CoreVolumeText.Visibility = ConfigManager.CurrentConfig.ShowCoreCircle ? Visibility.Visible : Visibility.Collapsed;
 			Panel.SetZIndex(CoreVolumeText, 22);
 			// 调音期间隐藏选中动作遮罩层，避免与音量百分比重叠
 			CoreSelectionTextPanel.Visibility = Visibility.Collapsed;
@@ -3042,7 +3044,7 @@ public partial class RadialWindow : Window
 
 	private void UpdateCoreSelectionDisplay(int mainIndex, int subIndex)
 	{
-		bool shouldShow = ConfigManager.CurrentConfig?.ShowSelectedActionText == true && mainIndex >= 0;
+		bool shouldShow = ConfigManager.CurrentConfig?.ShowCoreCircle == true && ConfigManager.CurrentConfig?.ShowSelectedActionText == true && mainIndex >= 0;
 		string selectedName = string.Empty;
 		if (shouldShow && mainIndex < _profile.SectorCount)
 		{

@@ -42,6 +42,8 @@ public partial class SettingsWindow : Window
 	private bool _isSidebarCollapsed = false;
 
 	private OfficialPluginCatalog? _officialPluginCatalog;
+	private DateTimeOffset? _officialCatalogCachedAt;
+	private bool _officialCatalogCacheLoaded;
 	private bool _officialPluginsLoading;
 	/// <summary>上次拉取官方 catalog 的失败原因。留着是为了切换语言时能把进度行按当前语言重渲染。</summary>
 	private string? _officialPluginsError;
@@ -487,6 +489,7 @@ public partial class SettingsWindow : Window
 			AppThemeManager.ApplyTheme(this, ConfigManager.CurrentConfig?.AppTheme ?? "System");
 			ApplySidebarLayout();
 			LoadConfigToUi();
+			LoadOfficialPluginCatalogCache();
 			SlotsItemsControl.ItemsSource = _slotViewModels;
 			bool flag4 = IsRunningAsAdmin();
 			UacWarningCard.Visibility = (flag4 ? Visibility.Collapsed : Visibility.Visible);
@@ -1326,7 +1329,20 @@ public partial class SettingsWindow : Window
 		}
 		UpdateSubColorPreviews();
 
-		// Center Core Icon
+		// Center Core Circle & Icon
+		if (ShowCoreCircleCheckBox != null)
+		{
+			ShowCoreCircleCheckBox.IsChecked = ConfigManager.CurrentConfig.ShowCoreCircle;
+		}
+		if (CoreDetailsPanel != null)
+		{
+			CoreDetailsPanel.IsEnabled = ConfigManager.CurrentConfig.ShowCoreCircle;
+			CoreDetailsPanel.Opacity = ConfigManager.CurrentConfig.ShowCoreCircle ? 1.0 : 0.5;
+		}
+		if (CoreRadiusSlider != null)
+		{
+			CoreRadiusSlider.IsEnabled = ConfigManager.CurrentConfig.ShowCoreCircle;
+		}
 		ShowCoreIconCheckBox.IsChecked = ConfigManager.CurrentConfig.ShowCoreIcon;
 		if (CoreIconConfigPanel != null)
 		{
@@ -2748,6 +2764,14 @@ public partial class SettingsWindow : Window
 		{
 			CoreSectionTitle.Text = I18n.T("CoreSectionTitle");
 		}
+		if (ShowCoreCircleCheckBox != null)
+		{
+			ShowCoreCircleCheckBox.Content = I18n.T("ShowCoreCircleTitle");
+		}
+		if (ShowCoreCircleDescText != null)
+		{
+			ShowCoreCircleDescText.Text = I18n.T("ShowCoreCircleDesc");
+		}
 		if (ShowCoreIconCheckBox != null)
 		{
 			ShowCoreIconCheckBox.Content = I18n.T("ShowCoreIcon");
@@ -3275,6 +3299,8 @@ public partial class SettingsWindow : Window
 		if (Tab1_TextOffsetXLabel != null) Tab1_TextOffsetXLabel.Text = I18n.T("Tab1_TextOffsetXLabel");
 		if (Tab1_TextOffsetYLabel != null) Tab1_TextOffsetYLabel.Text = I18n.T("Tab1_TextOffsetYLabel");
 		if (CoreSectionTitle != null) CoreSectionTitle.Text = I18n.T("CoreSectionTitle");
+		if (ShowCoreCircleCheckBox != null) ShowCoreCircleCheckBox.Content = I18n.T("ShowCoreCircleTitle");
+		if (ShowCoreCircleDescText != null) ShowCoreCircleDescText.Text = I18n.T("ShowCoreCircleDesc");
 		if (ShowCoreIconCheckBox != null) ShowCoreIconCheckBox.Content = I18n.T("ShowCoreIconTitle");
 		if (Tab1_CorePatternTypeLabel != null) Tab1_CorePatternTypeLabel.Text = I18n.T("Tab1_CorePatternTypeLabel");
 		if (CoreIconExitItem != null) CoreIconExitItem.Content = I18n.T("CorePatternExit");
@@ -3850,6 +3876,7 @@ public partial class SettingsWindow : Window
 
 	public void SwitchToTab(int index)
 	{
+		CancelExclusiveRecordingIfActive();
 		if (TriggerSettingsGrid == null || AppearanceSettingsGrid == null || MappingsSettingsGrid == null || SystemSettingsGrid == null || AboutSettingsGrid == null || PluginsSettingsGrid == null)
 		{
 			return;
@@ -4012,6 +4039,10 @@ public partial class SettingsWindow : Window
 			if (ShowSelectedActionTextCheckBox != null)
 			{
 				ConfigManager.CurrentConfig.ShowSelectedActionText = ShowSelectedActionTextCheckBox.IsChecked == true;
+			}
+			if (ShowCoreCircleCheckBox != null)
+			{
+				ConfigManager.CurrentConfig.ShowCoreCircle = ShowCoreCircleCheckBox.IsChecked == true;
 			}
 			if (ShowCoreIconCheckBox != null)
 			{
@@ -6380,6 +6411,7 @@ public partial class SettingsWindow : Window
 			if (FocusOcrPanel != null) FocusOcrPanel.Visibility = (type == "Ocr" || type == "ScreenOcr") ? Visibility.Visible : Visibility.Collapsed;
 			if (FocusPluginPanel != null) FocusPluginPanel.Visibility = (type == PluginActionBinding.TypeName) ? Visibility.Visible : Visibility.Collapsed;
 			if (type == PluginActionBinding.TypeName) RefreshFocusPluginPanel(displayItem);
+            FocusContributedParamsHost?.SetAction(displayItem, () => GetCurrentFocusActionItem(ensureLocalForEdit: true));
 
 			// 插件动作子下拉（按插件分组）。非插件类型时由该方法自行隐藏并清空。
 			RefreshFocusPluginActionComboBox(displayItem);
@@ -7342,6 +7374,12 @@ public partial class SettingsWindow : Window
 		}
 	}
 
+    private void FocusContributedParams_Changed(object sender, EventArgs e)
+    {
+        if (_isUpdatingFocusUi || _isUpdatingUi || !_isUiInitialized) return;
+        ScheduleAutoSave(); // 不重建焦点编辑器，避免下拉选中值和键盘焦点被重置。
+    }
+
 	/// <summary>参数表单内任一字段变化时的回调。</summary>
 	private void OnFocusPluginParameterChanged()
 	{
@@ -7477,6 +7515,29 @@ public partial class SettingsWindow : Window
 	/// 是否先与磁盘对账。进入页面时为 true —— 用户可能刚在资源管理器里拷入或删除了插件目录；
 	/// 页面内操作（启用/停用/卸载）之后为 false，那些操作自身已经把状态同步过了。
 	/// </param>
+	private void LoadOfficialPluginCatalogCache()
+	{
+		if (_officialCatalogCacheLoaded) return;
+		_officialCatalogCacheLoaded = true;
+
+		if (OfficialPluginClient.TryLoadCachedCatalog(
+			out OfficialPluginCatalog catalog,
+			out DateTimeOffset cachedAt,
+			out string cacheError))
+		{
+			_officialPluginCatalog = catalog;
+			_officialCatalogCachedAt = cachedAt;
+			_officialPluginsError = null;
+			RenderOfficialPluginItems();
+		}
+		else if (!string.IsNullOrWhiteSpace(cacheError))
+		{
+			AppLogger.LogWarn($"[plugin] 读取官方插件目录缓存失败：{cacheError}");
+		}
+
+		RenderOfficialPluginsStatus();
+	}
+
 	private async void RefreshOfficialPluginsButton_Click(object sender, RoutedEventArgs e)
 	{
 		await RefreshOfficialPluginsAsync();
@@ -7492,6 +7553,7 @@ public partial class SettingsWindow : Window
 		try
 		{
 			_officialPluginCatalog = await OfficialPluginClient.FetchCatalogAsync();
+			_officialCatalogCachedAt = OfficialPluginClient.GetCachedCatalogTimestamp();
 			_officialPluginsError = null;
 			RenderOfficialPluginItems();
 			RenderOfficialPluginsStatus();
@@ -7525,6 +7587,11 @@ public partial class SettingsWindow : Window
 		{
 			OfficialPluginsStatusText.Text = I18n.T("PluginsOfficialLoading");
 		}
+		else if (_officialPluginCatalog != null && _officialCatalogCachedAt.HasValue)
+		{
+			string cachedAt = _officialCatalogCachedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+			OfficialPluginsStatusText.Text = I18n.TF("PluginsOfficialCatalogCached", cachedAt, _officialPluginCatalog.Modules.Count);
+		}
 		else if (_officialPluginCatalog != null)
 		{
 			OfficialPluginsStatusText.Text = I18n.TF("PluginsOfficialCatalogInfo", _officialPluginCatalog.CatalogVersion, _officialPluginCatalog.Modules.Count);
@@ -7544,7 +7611,36 @@ public partial class SettingsWindow : Window
 		if (OfficialPluginItemsControl == null || _officialPluginCatalog == null) return;
 		var installed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		foreach (PluginInstance instance in PluginHost.ListInstances()) installed[instance.PluginId] = instance.Entry.Version;
-		OfficialPluginItemsControl.ItemsSource = _officialPluginCatalog.Modules.OrderBy(module => module.Name, StringComparer.CurrentCultureIgnoreCase).Select(module => new OfficialPluginListItem(module, installed.TryGetValue(module.Id, out string? version) ? version : null)).ToList();
+		OfficialPluginItemsControl.ItemsSource = _officialPluginCatalog.Modules.Select(module => new OfficialPluginListItem(module, installed.TryGetValue(module.Id, out string? version) ? version : null)).OrderBy(item => item.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
+	}
+
+	private void OpenOfficialPluginDetailsButton_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not System.Windows.Controls.Button { Tag: OfficialPluginModule module }) return;
+
+		var window = new PluginDetailWindow(
+			PluginDetailModelBuilder.FromOfficial(module, PluginHost.Find(module.Id)))
+		{
+			Owner = this,
+			WindowStartupLocation = WindowStartupLocation.CenterOwner,
+		};
+		window.ShowDialog();
+	}
+
+	private void OpenPluginDetailsButton_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not System.Windows.Controls.Button { Tag: string pluginId }
+			|| string.IsNullOrWhiteSpace(pluginId)) return;
+
+		PluginInstance? instance = PluginHost.Find(pluginId);
+		if (instance == null) return;
+
+		var window = new PluginDetailWindow(PluginDetailModelBuilder.FromLocal(instance))
+		{
+			Owner = this,
+			WindowStartupLocation = WindowStartupLocation.CenterOwner,
+		};
+		window.ShowDialog();
 	}
 
 	private async void InstallOfficialPluginButton_Click(object sender, RoutedEventArgs e)
@@ -7556,14 +7652,22 @@ public partial class SettingsWindow : Window
 		{
 			OfficialPluginInstallResult result = await OfficialPluginClient.InstallAsync(module);
 			string title = I18n.T("PluginsOfficialMsgTitle");
-			if (!result.Success) System.Windows.MessageBox.Show(this, I18n.TF("PluginsOfficialInstallFailed", module.Name, result.Error), title, MessageBoxButton.OK, MessageBoxImage.Warning);
+			if (!result.Success)
+			{
+				string detail = I18n.TF("PluginsOfficialInstallFailed", module.Name, result.Error);
+				if (!result.RestartSuggested || !OfferPluginRestart(result.PluginId, detail, restartSuggested: true, retryInstall: true))
+					System.Windows.MessageBox.Show(this, detail, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+			}
 			else System.Windows.MessageBox.Show(this, I18n.TF("PluginsOfficialInstalled", module.Name, module.Version), title, MessageBoxButton.OK, MessageBoxImage.Information);
 		}
 		finally
 		{
-			button.IsEnabled = true;
-			RefreshPluginManagerUi();
-			RenderOfficialPluginItems();
+			if (!App.IsExiting)
+			{
+				button.IsEnabled = true;
+				RefreshPluginManagerUi();
+				RenderOfficialPluginItems();
+			}
 		}
 	}
 
@@ -7805,8 +7909,9 @@ public partial class SettingsWindow : Window
 
 		if (!installResult.Success)
 		{
-			System.Windows.MessageBox.Show(this,
-				I18n.TF("PluginsInstallFailed", error), I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+			string detail = I18n.TF("PluginsInstallFailed", error);
+			if (!installResult.RestartSuggested || !OfferPluginRestart(installResult.PluginId, detail, restartSuggested: true, retryInstall: true))
+				System.Windows.MessageBox.Show(this, detail, I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
 		}
 		else if (candidate.State == PluginCandidateState.Update)
 		{
@@ -7815,7 +7920,7 @@ public partial class SettingsWindow : Window
 				I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
 		}
 
-		RefreshPluginManagerUi();
+		if (!App.IsExiting) RefreshPluginManagerUi();
 	}
 
 	/// <summary>打开只读扫描目录。目录不存在时只提示路径，绝不代为创建。</summary>
@@ -7955,8 +8060,10 @@ public partial class SettingsWindow : Window
 
 		if (!result.Success)
 		{
-			System.Windows.MessageBox.Show(this, I18n.TF("PluginsInstallFailed", result.Error),
-				I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+			string detail = I18n.TF("PluginsInstallFailed", result.Error);
+			if (!result.RestartSuggested || !OfferPluginRestart(result.PluginId, detail, restartSuggested: true, retryInstall: true))
+				System.Windows.MessageBox.Show(this, detail, I18n.T("PluginsMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+			if (!App.IsExiting) RefreshPluginManagerUi();
 			return;
 		}
 
@@ -8083,7 +8190,7 @@ public partial class SettingsWindow : Window
 		}
 
 		bool desired = box.IsChecked == true;
-		PluginRegistryStore.SetPreload(pluginId, desired);
+		PluginHost.SetPreload(pluginId, desired);
 		if (desired && !PluginHost.PreloadNow(pluginId, out string preloadError))
 		{
 			System.Windows.MessageBox.Show(this,
@@ -8146,7 +8253,7 @@ public partial class SettingsWindow : Window
 				}
 				else if (!stop.IsFullyStopped)
 				{
-					if (!OfferPluginRestart(pluginId, stop.Message))
+					if (!OfferPluginRestart(pluginId, stop.Message, restartSuggested: stop.RestartSuggested))
 					{
 						System.Windows.MessageBox.Show(this, stop.Message,
 							I18n.T("PluginsStoppingTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
@@ -8156,16 +8263,17 @@ public partial class SettingsWindow : Window
 		}
 		finally
 		{
-			box.IsEnabled = true;
-			RefreshPluginManagerUi();
+			if (!App.IsExiting)
+			{
+				box.IsEnabled = true;
+				RefreshPluginManagerUi();
+			}
 		}
 	}
 
-	private bool OfferPluginRestart(string pluginId, string detail)
+	private bool OfferPluginRestart(string pluginId, string detail, bool restartSuggested = false, bool retryInstall = false)
 	{
-		if (!PluginHost.IsRestartRequired(pluginId) &&
-			!detail.Contains("旧运行时", StringComparison.OrdinalIgnoreCase) &&
-			!detail.Contains("old runtime", StringComparison.OrdinalIgnoreCase))
+		if (!restartSuggested && !PluginHost.IsRestartRequired(pluginId))
 		{
 			return false;
 		}
@@ -8173,16 +8281,16 @@ public partial class SettingsWindow : Window
 		string pluginName = PluginHost.Find(pluginId)?.Entry.Name ?? pluginId;
 		MessageBoxResult choice = MessageBox.Show(
 			this,
-			I18n.TF("PluginsRestartPrompt", pluginName, detail),
+			I18n.TF(retryInstall ? "PluginsUpdateRestartPrompt" : "PluginsRestartPrompt", pluginName, detail),
 			I18n.T("PluginsRestartTitle"),
 			MessageBoxButton.YesNo,
 			MessageBoxImage.Warning,
-			MessageBoxResult.Yes);
+			MessageBoxResult.No);
 		if (choice != MessageBoxResult.Yes) return true;
 
 		if (App.Restart()) return true;
 
-		MessageBox.Show(this, I18n.TF("PluginsRestartFailed", "无法启动新的 StarPie 进程"),
+		MessageBox.Show(this, I18n.TF("PluginsRestartFailed", I18n.T("PluginsRestartStartFailed")),
 			I18n.T("PluginsRestartTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
 		return true;
 	}
@@ -8751,22 +8859,69 @@ public partial class SettingsWindow : Window
 		}
 	}
 
+	private enum ExclusiveRecordingTargetKind
+	{
+		None,
+		Sector,
+		Gesture
+	}
+
+	private class ExclusiveRecordingSession
+	{
+		public long SessionId { get; }
+		public ExclusiveRecordingTargetKind Kind { get; }
+		public GestureMappingViewModel? GestureVm { get; }
+		public GestureMapping? TargetMapping { get; }
+
+		public ExclusiveRecordingSession(long sessionId, ExclusiveRecordingTargetKind kind, GestureMappingViewModel? gestureVm = null, GestureMapping? targetMapping = null)
+		{
+			SessionId = sessionId;
+			Kind = kind;
+			GestureVm = gestureVm;
+			TargetMapping = targetMapping ?? gestureVm?.Mapping;
+		}
+	}
+
+	private ExclusiveRecordingSession? _currentExclusiveSession;
+	private long _exclusiveSessionCounter = 0;
+
 	private void StartExclusiveRecording()
 	{
 		if (App.MainKeyboardHook == null) return;
 		if (App.MainKeyboardHook.SuppressGlobalHotkeysForRecording) return;
+
+		long sessionId = Interlocked.Increment(ref _exclusiveSessionCounter);
+		_currentExclusiveSession = new ExclusiveRecordingSession(sessionId, ExclusiveRecordingTargetKind.Sector);
 
 		App.MainKeyboardHook.StartExclusiveRecording();
 		UpdatePauseHotkeysButtonState(true);
 		if (FocusHotkeyRecorder != null)
 		{
 			FocusHotkeyRecorder.Focus();
-			FocusHotkeyRecorder.ShowExclusiveRecordingState("🔴 全局热键已暂停，请按下快捷键组合 (如 Win+D、Alt+Tab)...");
+			FocusHotkeyRecorder.ShowExclusiveRecordingState(I18n.T("ExclusiveRecordingStatePrompt"));
 		}
 		AppLogger.LogInfo("Activated exclusive hotkey recording mode (suppressing desktop and app hotkeys)");
 		try
 		{
-			App.ShowTrayBalloon(2000, "StarPie", "⏸️ 已暂时暂停桌面系统及其他软件全局快捷键，在此按下目标按键组合进行录入（按 Esc 取消）", System.Windows.Forms.ToolTipIcon.Info);
+			App.ShowTrayBalloon(2000, "StarPie", I18n.T("ExclusiveRecordingBalloonActivated"), System.Windows.Forms.ToolTipIcon.Info);
+		}
+		catch { }
+	}
+
+	private void StartExclusiveRecordingForGesture(GestureMappingViewModel vm)
+	{
+		if (App.MainKeyboardHook == null) return;
+		if (App.MainKeyboardHook.SuppressGlobalHotkeysForRecording) return;
+
+		long sessionId = Interlocked.Increment(ref _exclusiveSessionCounter);
+		_currentExclusiveSession = new ExclusiveRecordingSession(sessionId, ExclusiveRecordingTargetKind.Gesture, vm, vm.Mapping);
+
+		vm.IsExclusiveRecording = true;
+		App.MainKeyboardHook.StartExclusiveRecording();
+		AppLogger.LogInfo($"Activated exclusive hotkey recording mode for gesture mapping '{vm.Pattern}'");
+		try
+		{
+			App.ShowTrayBalloon(2000, "StarPie", I18n.T("ExclusiveRecordingBalloonActivated"), System.Windows.Forms.ToolTipIcon.Info);
 		}
 		catch { }
 	}
@@ -8782,7 +8937,7 @@ public partial class SettingsWindow : Window
 			CancelExclusiveRecordingIfActive();
 			try
 			{
-				App.ShowTrayBalloon(1000, "StarPie", "▶️ 已恢复全局热键与按键正常监听", System.Windows.Forms.ToolTipIcon.Info);
+				App.ShowTrayBalloon(1000, "StarPie", I18n.T("ExclusiveRecordingBalloonRestored"), System.Windows.Forms.ToolTipIcon.Info);
 			}
 			catch { }
 		}
@@ -8793,8 +8948,45 @@ public partial class SettingsWindow : Window
 		}
 	}
 
+	private void GestureTogglePauseHotkeys_Click(object sender, RoutedEventArgs e)
+	{
+		if (App.MainKeyboardHook == null) return;
+		if (sender is not FrameworkElement fe || fe.DataContext is not GestureMappingViewModel vm) return;
+
+		if (_currentExclusiveSession?.Kind == ExclusiveRecordingTargetKind.Gesture && (_currentExclusiveSession.GestureVm == vm || ReferenceEquals(_currentExclusiveSession.TargetMapping, vm.Mapping)))
+		{
+			CancelExclusiveRecordingIfActive();
+			try
+			{
+				App.ShowTrayBalloon(1000, "StarPie", I18n.T("ExclusiveRecordingBalloonRestored"), System.Windows.Forms.ToolTipIcon.Info);
+			}
+			catch { }
+		}
+		else
+		{
+			CancelExclusiveRecordingIfActive();
+			StartExclusiveRecordingForGesture(vm);
+		}
+	}
+
 	private void CancelExclusiveRecordingIfActive()
 	{
+		Interlocked.Increment(ref _exclusiveSessionCounter);
+		var activeSession = _currentExclusiveSession;
+		_currentExclusiveSession = null;
+
+		if (activeSession?.Kind == ExclusiveRecordingTargetKind.Gesture)
+		{
+			if (activeSession.GestureVm != null)
+			{
+				activeSession.GestureVm.IsExclusiveRecording = false;
+			}
+			if (activeSession.TargetMapping != null)
+			{
+				GestureMappingViewModel.SetMappingExclusiveRecording(activeSession.TargetMapping, false);
+			}
+		}
+
 		if (App.MainKeyboardHook != null && App.MainKeyboardHook.SuppressGlobalHotkeysForRecording)
 		{
 			App.MainKeyboardHook.CancelExclusiveRecording();
@@ -8805,46 +8997,109 @@ public partial class SettingsWindow : Window
 				FocusHotkeyRecorder.HotkeyText = GetCurrentFocusActionItem()?.Parameter ?? "";
 			}
 		}
+		else
+		{
+			UpdatePauseHotkeysButtonState(false);
+			if (FocusHotkeyRecorder != null)
+			{
+				FocusHotkeyRecorder.IsRecording = false;
+			}
+		}
 	}
 
 	private void MainKeyboardHook_OnExclusiveRecordModifiersChanged(ModifierKeys modifiers)
 	{
+		var session = _currentExclusiveSession;
+		if (session == null) return;
+		long expectedSessionId = session.SessionId;
+
 		Dispatcher.BeginInvoke(() =>
 		{
-			if (FocusHotkeyRecorder != null && App.MainKeyboardHook?.SuppressGlobalHotkeysForRecording == true)
+			if (_currentExclusiveSession == null || _currentExclusiveSession.SessionId != expectedSessionId)
 			{
-				List<string> list = new List<string>();
-				if (modifiers.HasFlag(ModifierKeys.Control)) list.Add("Ctrl");
-				if (modifiers.HasFlag(ModifierKeys.Shift)) list.Add("Shift");
-				if (modifiers.HasFlag(ModifierKeys.Alt)) list.Add("Alt");
-				if (modifiers.HasFlag(ModifierKeys.Windows)) list.Add("Win");
-				string text = list.Count > 0 ? $"🔴 {string.Join(" + ", list)} + ... (按Esc取消)" : "🔴 全局热键已暂停，请按下快捷键组合 (如 Win+D、Alt+Tab)...";
-				FocusHotkeyRecorder.ShowExclusiveRecordingState(text);
+				return;
+			}
+			if (App.MainKeyboardHook?.SuppressGlobalHotkeysForRecording != true) return;
+
+			if (_currentExclusiveSession.Kind == ExclusiveRecordingTargetKind.Sector)
+			{
+				if (FocusHotkeyRecorder != null)
+				{
+					List<string> list = new List<string>();
+					if (modifiers.HasFlag(ModifierKeys.Control)) list.Add("Ctrl");
+					if (modifiers.HasFlag(ModifierKeys.Shift)) list.Add("Shift");
+					if (modifiers.HasFlag(ModifierKeys.Alt)) list.Add("Alt");
+					if (modifiers.HasFlag(ModifierKeys.Windows)) list.Add("Win");
+					string text = list.Count > 0 ? I18n.TF("ExclusiveRecordingModifiersPrompt", string.Join(" + ", list)) : I18n.T("ExclusiveRecordingStatePrompt");
+					FocusHotkeyRecorder.ShowExclusiveRecordingState(text);
+				}
 			}
 		});
 	}
 
 	private void MainKeyboardHook_OnExclusiveRecordCompleted(string hotkeyStr)
 	{
+		var session = _currentExclusiveSession;
+		if (session == null) return;
+		long expectedSessionId = session.SessionId;
+
 		Dispatcher.BeginInvoke(() =>
 		{
-			UpdatePauseHotkeysButtonState(false);
-			if (FocusHotkeyRecorder != null)
+			if (_currentExclusiveSession == null || _currentExclusiveSession.SessionId != expectedSessionId)
 			{
-				FocusHotkeyRecorder.SetRecordedHotkey(hotkeyStr);
+				return;
 			}
-			var item = GetCurrentFocusActionItem();
-			if (item != null)
+
+			var currentSession = _currentExclusiveSession;
+			_currentExclusiveSession = null;
+			Interlocked.Increment(ref _exclusiveSessionCounter);
+
+			if (currentSession.Kind == ExclusiveRecordingTargetKind.Sector)
 			{
-				item.Parameter = hotkeyStr;
-				RefreshSlots();
-				RenderMappingsWheelPreview();
-				ScheduleAutoSave();
+				UpdatePauseHotkeysButtonState(false);
+				if (FocusHotkeyRecorder != null)
+				{
+					FocusHotkeyRecorder.SetRecordedHotkey(hotkeyStr);
+				}
+				var item = GetCurrentFocusActionItem();
+				if (item != null)
+				{
+					item.Parameter = hotkeyStr;
+					RefreshSlots();
+					RenderMappingsWheelPreview();
+					ScheduleAutoSave();
+				}
 			}
+			else if (currentSession.Kind == ExclusiveRecordingTargetKind.Gesture)
+			{
+				var targetMapping = currentSession.TargetMapping;
+				var vm = currentSession.GestureVm;
+				if (vm != null)
+				{
+					vm.IsExclusiveRecording = false;
+				}
+				if (targetMapping != null)
+				{
+					GestureMappingViewModel.SetMappingExclusiveRecording(targetMapping, false);
+					if (targetMapping.Action != null &&
+						(targetMapping.Action.Type == "Hotkey" || targetMapping.Action.Type == null) &&
+						ConfigManager.CurrentConfig?.GestureMappings != null &&
+						ConfigManager.CurrentConfig.GestureMappings.Contains(targetMapping))
+					{
+						targetMapping.Action.Parameter = hotkeyStr;
+						if (vm != null && ReferenceEquals(vm.Mapping, targetMapping))
+						{
+							vm.Parameter = hotkeyStr;
+						}
+						SyncUiToConfigAndSave();
+					}
+				}
+			}
+
 			AppLogger.LogInfo($"Exclusive hotkey recorded successfully: {hotkeyStr}");
 			try
 			{
-				App.ShowTrayBalloon(1500, "StarPie", $"✅ 已录制快捷键: {hotkeyStr}（已恢复全局热键）", System.Windows.Forms.ToolTipIcon.Info);
+				App.ShowTrayBalloon(1500, "StarPie", I18n.TF("ExclusiveRecordingBalloonRecorded", hotkeyStr), System.Windows.Forms.ToolTipIcon.Info);
 			}
 			catch { }
 		});
@@ -8852,8 +9107,16 @@ public partial class SettingsWindow : Window
 
 	private void MainKeyboardHook_OnExclusiveRecordCancelled()
 	{
+		var session = _currentExclusiveSession;
+		if (session == null) return;
+		long expectedSessionId = session.SessionId;
+
 		Dispatcher.BeginInvoke(() =>
 		{
+			if (_currentExclusiveSession == null || _currentExclusiveSession.SessionId != expectedSessionId)
+			{
+				return;
+			}
 			CancelExclusiveRecordingIfActive();
 			try
 			{
@@ -9350,7 +9613,8 @@ public partial class SettingsWindow : Window
 				Height = coreR * 2.0,
 				RenderTransformOrigin = new Point(0.5, 0.5),
 				Cursor = System.Windows.Input.Cursors.Hand,
-				IsHitTestVisible = false
+				IsHitTestVisible = false,
+				Visibility = AppConfig.GetCoreCircleVisibility(ConfigManager.CurrentConfig.ShowCoreCircle)
 			};
 			bool isCenterSelected = (_selectedSlotIndex == -1);
 
@@ -15176,6 +15440,32 @@ public partial class SettingsWindow : Window
 		}
 	}
 
+	private void ShowCoreCircleCheckBox_Changed(object sender, RoutedEventArgs e)
+	{
+		bool isVisible = ShowCoreCircleCheckBox?.IsChecked == true;
+		if (CoreDetailsPanel != null)
+		{
+			CoreDetailsPanel.IsEnabled = isVisible;
+			CoreDetailsPanel.Opacity = isVisible ? 1.0 : 0.5;
+		}
+		if (CoreRadiusSlider != null)
+		{
+			CoreRadiusSlider.IsEnabled = isVisible;
+		}
+		if (!_isUpdatingUi && ConfigManager.CurrentConfig != null)
+		{
+			ConfigManager.CurrentConfig.ShowCoreCircle = isVisible;
+			ConfigManager.MarkConfigurationChanged();
+			Grid appearanceSettingsGrid = AppearanceSettingsGrid;
+			if (appearanceSettingsGrid != null && appearanceSettingsGrid.Visibility == Visibility.Visible)
+			{
+				RenderLiveWheelPreview();
+			}
+			RenderMappingsWheelPreview();
+			SyncUiToConfigAndSave();
+		}
+	}
+
 	private void ShowCoreIconCheckBox_Changed(object sender, RoutedEventArgs e)
 	{
 		if (CoreIconConfigPanel != null && ShowCoreIconCheckBox != null)
@@ -18053,7 +18343,8 @@ public partial class SettingsWindow : Window
 			{
 				Width = num10 * 2.0,
 				Height = num10 * 2.0,
-				RenderTransformOrigin = new Point(0.5, 0.5)
+				RenderTransformOrigin = new Point(0.5, 0.5),
+				Visibility = AppConfig.GetCoreCircleVisibility(ConfigManager.CurrentConfig.ShowCoreCircle)
 			};
 			_previewCoreScale = new ScaleTransform(1.0, 1.0);
 			grid.RenderTransform = _previewCoreScale;
@@ -19343,7 +19634,9 @@ public partial class SettingsWindow : Window
 
 	private void UpdatePreviewCoreSelection(int mainIndex, int subIndex, WheelProfile? wheelProfile)
 	{
-		bool shouldShow = ConfigManager.CurrentConfig?.ShowSelectedActionText == true && mainIndex >= 0 && wheelProfile != null;
+		bool shouldShow = AppConfig.ShouldShowCoreSelectionText(
+			ConfigManager.CurrentConfig?.ShowCoreCircle ?? true,
+			ConfigManager.CurrentConfig?.ShowSelectedActionText ?? true) && mainIndex >= 0 && wheelProfile != null;
 		string selectedName = string.Empty;
 		if (shouldShow && wheelProfile!.Actions != null && mainIndex < wheelProfile.Actions.Count)
 		{
@@ -19896,10 +20189,16 @@ public partial class SettingsWindow : Window
 		{
 			return;
 		}
+		if (_currentExclusiveSession?.Kind == ExclusiveRecordingTargetKind.Gesture)
+		{
+			CancelExclusiveRecordingIfActive();
+		}
 		List<GestureMappingViewModel> list = new List<GestureMappingViewModel>();
 		foreach (GestureMapping m in ConfigManager.CurrentConfig.GestureMappings ?? new List<GestureMapping>())
 		{
-			list.Add(new GestureMappingViewModel(m));
+			var vm = new GestureMappingViewModel(m);
+			vm.OnExclusiveRecordingCancelledRequest = CancelExclusiveRecordingIfActive;
+			list.Add(vm);
 		}
 		GestureMappingsItemsControl.ItemsSource = list;
 	}
@@ -19981,6 +20280,11 @@ public partial class SettingsWindow : Window
 		{
 			return;
 		}
+		if (_currentExclusiveSession?.Kind == ExclusiveRecordingTargetKind.Gesture &&
+			(_currentExclusiveSession.GestureVm == vm || ReferenceEquals(_currentExclusiveSession.TargetMapping, vm.Mapping)))
+		{
+			CancelExclusiveRecordingIfActive();
+		}
 		ConfigManager.CurrentConfig.GestureMappings?.RemoveAll((GestureMapping m) => ReferenceEquals(m, vm.Mapping));
 		RefreshGestureMappings();
 		SyncUiToConfigAndSave();
@@ -19992,6 +20296,177 @@ public partial class SettingsWindow : Window
 		{
 			ActionExecutor.ExecuteForTesting(vm.Mapping.Action);
 		}
+	}
+
+	private void GesturePickShellTool_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is FrameworkElement { DataContext: GestureMappingViewModel vm })
+		{
+			ShellActionPickerWindow picker = new ShellActionPickerWindow(vm.Parameter)
+			{
+				Owner = this
+			};
+			if (picker.ShowDialog() == true && picker.SelectedTool != null)
+			{
+				var tool = picker.SelectedTool;
+				vm.Type = "ShellTool";
+				vm.Parameter = tool.Id;
+				if (string.IsNullOrWhiteSpace(vm.Name) || ActionNameDefaults.IsAutoFilled(vm.Name))
+				{
+					vm.Name = tool.Name;
+				}
+				vm.Mapping.Action.IconKey = tool.IconKey;
+				vm.InheritAppIconPath = "";
+				vm.NotifyAllPropertiesChanged();
+				SyncUiToConfigAndSave();
+			}
+		}
+	}
+
+	private void GestureEditPluginParams_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not FrameworkElement { DataContext: GestureMappingViewModel vm }) return;
+		if (vm.Mapping.Action.PluginActionRef == null) return;
+		if (!PluginHost.TryGetAction(vm.Mapping.Action.PluginActionRef.FullId, out PluginActionRegistration reg)) return;
+
+		ShowGesturePluginActionParameterDialog(vm, reg);
+	}
+
+	private void ShowGesturePluginActionParameterDialog(GestureMappingViewModel vm, PluginActionRegistration reg)
+	{
+		string dialogTitle = string.IsNullOrWhiteSpace(reg.DisplayName) ? reg.ShortId : reg.DisplayName;
+		string settingsSuffix = I18n.T("PluginsCardSettingsButton").TrimStart('⚙', ' ');
+		Window dialog = new Window
+		{
+			Title = $"{dialogTitle} - {settingsSuffix}",
+			Width = 480,
+			Height = 460,
+			MinWidth = 380,
+			MinHeight = 300,
+			WindowStartupLocation = WindowStartupLocation.CenterOwner,
+			Owner = this,
+			ShowInTaskbar = false,
+			Background = (Brush)FindResource("WindowBackgroundBrush"),
+			FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI, Arial"),
+			ResizeMode = ResizeMode.CanResizeWithGrip
+		};
+		AppThemeManager.ApplyTheme(dialog, AppThemeManager.CurrentEffectiveTheme);
+
+		Grid rootGrid = new Grid { Margin = new Thickness(18) };
+		rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+		rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+		StackPanel headerPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+		TextBlock titleText = new TextBlock
+		{
+			Text = $"{reg.DisplayName} ({PluginActionBinding.ResolvePluginDisplayName(reg.PluginId)})",
+			FontSize = 15,
+			FontWeight = FontWeights.SemiBold,
+			Foreground = (Brush)FindResource("TextPrimaryBrush"),
+			TextWrapping = TextWrapping.Wrap
+		};
+		headerPanel.Children.Add(titleText);
+
+		if (!string.IsNullOrWhiteSpace(reg.Description))
+		{
+			TextBlock descText = new TextBlock
+			{
+				Text = reg.Description,
+				FontSize = 11.5,
+				Foreground = (Brush)FindResource("TextSecondaryBrush"),
+				Margin = new Thickness(0, 6, 0, 0),
+				TextWrapping = TextWrapping.Wrap
+			};
+			headerPanel.Children.Add(descText);
+		}
+		Grid.SetRow(headerPanel, 0);
+		rootGrid.Children.Add(headerPanel);
+
+		ScrollViewer scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+		StackPanel formPanel = new StackPanel();
+		scrollViewer.Content = formPanel;
+		Grid.SetRow(scrollViewer, 1);
+		rootGrid.Children.Add(scrollViewer);
+
+		Grid footerGrid = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+		footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+		footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+		SolidColorBrush errBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+		errBrush.Freeze();
+
+		TextBlock validationText = new TextBlock
+		{
+			FontSize = 11,
+			Foreground = errBrush,
+			VerticalAlignment = VerticalAlignment.Center,
+			TextWrapping = TextWrapping.Wrap,
+			Visibility = Visibility.Collapsed
+		};
+		Grid.SetColumn(validationText, 0);
+		footerGrid.Children.Add(validationText);
+
+		Button closeBtn = new Button
+		{
+			Content = I18n.T("BtnClose"),
+			Height = 30,
+			Padding = new Thickness(16, 0, 16, 0),
+			HorizontalAlignment = HorizontalAlignment.Right,
+			IsCancel = true,
+			Style = (Style)FindResource("ModernButtonStyle")
+		};
+		closeBtn.Click += (_, _) => dialog.Close();
+		Grid.SetColumn(closeBtn, 1);
+		footerGrid.Children.Add(closeBtn);
+
+		Grid.SetRow(footerGrid, 2);
+		rootGrid.Children.Add(footerGrid);
+
+		dialog.Content = rootGrid;
+
+		ActionItem targetAction = vm.Mapping.Action;
+		ActionItemParameterTarget target = new ActionItemParameterTarget(targetAction);
+
+		PluginParameterForm form = null!;
+		void RefreshValidation()
+		{
+			PluginActionValidation val = PluginHost.ValidateActionParameters(targetAction);
+			form.ShowIssues(val.DeclaredIssues);
+			string? msg = val.PluginMessage;
+			if (msg == null && val.DeclaredIssues.Count > 0)
+			{
+				msg = PluginActionPanelText.IssuesCount(val.DeclaredIssues.Count);
+			}
+			if (string.IsNullOrWhiteSpace(msg))
+			{
+				validationText.Text = "";
+				validationText.Visibility = Visibility.Collapsed;
+			}
+			else
+			{
+				validationText.Text = "⛔ " + msg;
+				validationText.Visibility = Visibility.Visible;
+			}
+		}
+
+		form = new PluginParameterForm(formPanel, () => target, () =>
+		{
+			RefreshValidation();
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
+		});
+
+		form.Build(reg.Parameters, reg.PluginId);
+		RefreshValidation();
+
+		dialog.Closed += (_, _) =>
+		{
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
+		};
+
+		dialog.ShowDialog();
 	}
 
 	// ==================== 取消后动作 ====================
@@ -20483,20 +20958,120 @@ public partial class SettingsWindow : Window
 		PersistTileCycleSelection();
 	}
 
+	private bool IsValidGestureOrCancelActionTarget(GestureMappingViewModel? vm)
+	{
+		if (vm?.Mapping == null) return false;
+		if (ConfigManager.CurrentConfig?.GestureMappings != null && ConfigManager.CurrentConfig.GestureMappings.Contains(vm.Mapping))
+		{
+			return true;
+		}
+		if (CancelActionEditorHost?.DataContext is GestureMappingViewModel cancelVm && ReferenceEquals(cancelVm, vm))
+		{
+			return true;
+		}
+		if (ConfigManager.CurrentConfig?.CancelAction != null && ReferenceEquals(ConfigManager.CurrentConfig.CancelAction, vm.Mapping.Action))
+		{
+			return true;
+		}
+		return false;
+	}
+
+	private void GesturePickProgramFromLibrary_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not FrameworkElement fe || fe.DataContext is not GestureMappingViewModel vm) return;
+		if (!vm.IsLaunchType) return;
+		if (!IsValidGestureOrCancelActionTarget(vm)) return;
+
+		ProgramPickerWindow programPicker = new ProgramPickerWindow
+		{
+			Owner = this
+		};
+		if (programPicker.ShowDialog() == true && !string.IsNullOrEmpty(programPicker.SelectedPath))
+		{
+			if (!vm.IsLaunchType || !IsValidGestureOrCancelActionTarget(vm)) return;
+			vm.Parameter = programPicker.SelectedPath;
+			vm.InheritAppIconPath = programPicker.SelectedPath;
+			if (string.IsNullOrWhiteSpace(vm.Name) || ActionNameDefaults.IsAutoFilled(vm.Name))
+			{
+				string autoName = !string.IsNullOrEmpty(programPicker.SelectedName)
+					? programPicker.SelectedName
+					: System.IO.Path.GetFileNameWithoutExtension(programPicker.SelectedPath);
+				vm.Name = autoName;
+			}
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
+		}
+	}
+
+	private void GestureCaptureRunningWindow_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not FrameworkElement fe || fe.DataContext is not GestureMappingViewModel vm) return;
+		if (!vm.IsLaunchType) return;
+		if (!IsValidGestureOrCancelActionTarget(vm)) return;
+
+		WindowPickerWindow picker = new WindowPickerWindow(WindowPickerMode.ExecutablePath)
+		{
+			Owner = this
+		};
+		if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
+		{
+			if (!vm.IsLaunchType || !IsValidGestureOrCancelActionTarget(vm)) return;
+			vm.Parameter = picker.SelectedPath;
+			vm.InheritAppIconPath = picker.SelectedPath;
+			if (string.IsNullOrWhiteSpace(vm.Name) || ActionNameDefaults.IsAutoFilled(vm.Name))
+			{
+				string autoName = !string.IsNullOrEmpty(picker.SelectedTitle)
+					? picker.SelectedTitle
+					: (!string.IsNullOrEmpty(picker.SelectedProcessName) ? picker.SelectedProcessName : System.IO.Path.GetFileNameWithoutExtension(picker.SelectedPath));
+				vm.Name = autoName;
+			}
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
+		}
+	}
+
 	private void GestureBrowse_Click(object sender, RoutedEventArgs e)
 	{
-		if (sender is FrameworkElement fe && fe.DataContext is GestureMappingViewModel vm)
+		if (sender is not FrameworkElement fe || fe.DataContext is not GestureMappingViewModel vm) return;
+		if (!vm.IsLaunchType) return;
+		if (!IsValidGestureOrCancelActionTarget(vm)) return;
+
+		Microsoft.Win32.OpenFileDialog dlg = new Microsoft.Win32.OpenFileDialog
 		{
-			ProgramPickerWindow picker = new ProgramPickerWindow();
-			picker.Owner = this;
-			if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedPath))
+			Filter = I18n.T("FileDialogFilterExecutable"),
+			Title = I18n.T("FileDialogTitleSelectProgram")
+		};
+		if (dlg.ShowDialog(this) == true)
+		{
+			if (!vm.IsLaunchType || !IsValidGestureOrCancelActionTarget(vm)) return;
+			vm.Parameter = dlg.FileName;
+			vm.InheritAppIconPath = dlg.FileName;
+			if (string.IsNullOrWhiteSpace(vm.Name) || ActionNameDefaults.IsAutoFilled(vm.Name))
 			{
-				vm.Parameter = picker.SelectedPath;
-				if (string.IsNullOrEmpty(vm.Name))
-				{
-					vm.Name = !string.IsNullOrEmpty(picker.SelectedName) ? picker.SelectedName : System.IO.Path.GetFileNameWithoutExtension(picker.SelectedPath);
-				}
+				string autoName = System.IO.Path.GetFileNameWithoutExtension(dlg.FileName);
+				vm.Name = autoName;
 			}
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
+		}
+	}
+
+	private void GestureHotkeyBuilder_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not FrameworkElement fe || fe.DataContext is not GestureMappingViewModel vm) return;
+		if (!vm.IsHotkeyType) return;
+		if (!IsValidGestureOrCancelActionTarget(vm)) return;
+
+		HotkeyBuilderDialog dlg = new HotkeyBuilderDialog(vm.Parameter ?? "")
+		{
+			Owner = this
+		};
+		if (dlg.ShowDialog() == true)
+		{
+			if (!vm.IsHotkeyType || !IsValidGestureOrCancelActionTarget(vm)) return;
+			vm.Parameter = dlg.ResultHotkey;
+			vm.NotifyAllPropertiesChanged();
+			SyncUiToConfigAndSave();
 		}
 	}
 
@@ -20506,7 +21081,7 @@ public partial class SettingsWindow : Window
 		{
 			using (System.Windows.Forms.FolderBrowserDialog dialog = new System.Windows.Forms.FolderBrowserDialog())
 			{
-				dialog.Description = "选择要打开的本地文件夹";
+				dialog.Description = I18n.T("FolderDialogDescription");
 				dialog.UseDescriptionForTitle = true;
 				dialog.ShowNewFolderButton = true;
 				if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)

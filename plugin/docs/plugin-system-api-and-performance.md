@@ -748,3 +748,25 @@ Workstation GC
 - [清单模型](../sdk/StarPie.Plugin.Abstractions/PluginManifest.cs)
 - [入门示例](../samples/HelloAction/)
 - [进阶示例](../samples/ScreenBrightness/)
+
+## SDK 1.8：按调用指定进程权限
+
+- `ProcessLaunchMode` 有 `Default`、`Administrator`、`StandardUser` 三态。它只控制本次目标进程的启动方式，不改变宿主或插件进程的权限。
+- 新入口：`Host.LaunchWithMode(path, mode, arguments)`、`Commands.RunWithMode(command, mode, terminal)`、`Shell.InvokeWithMode(verb, mode)`，均需要 `Process`。旧方法与旧签名保留。
+- 显式权限失败或取消授权时不回退；ShellTool 的显式模式仅支持 CMD、PowerShell、Windows Terminal、Git Bash、VS Code 的启动动词。其他动词返回失败，不执行默认权限操作。
+- Command 保留终端选择、命令包装与隐藏窗口选项；管理员授权界面本身不能由隐藏模式隐藏。打包应用激活不支持管理员模式。
+- 权限参数键与用户偏好归插件所有，宿主没有新增 HostActionFields 或裸配置字段。认领动作的额外参数也通过通用 PluginParameterForm 渲染。
+- ParameterField 可用 FallbackParameterKey 与 FallbackValueMap 声明通用旧值回填：已保存的新值优先；没有新值才使用映射，再回落 DefaultValue。回填不写配置。Launch 插件用此规则兼容旧 RunAsStandardUser。
+- 新调用默认接口实现仅转发 Default；没有实现显式模式的旧适配器会拒绝显式请求，而不是假装成功。
+- 使用新入口的插件必须声明 apiVersion 1.8，旧宿主会在加载前拒绝。SDK 程序集身份保持不变。
+- 此模式不是插件沙箱，也不能阻止目标应用随后自行请求提权或复用已有实例；这些属于目标应用自己的行为。
+
+无副作用回归：`dotnet run --project scratch/process-launch-tests/test_process_launch.csproj -c Release`。此测试只构造控件，不打开窗口，不启动目标进程，不弹 UAC。真实权限与终端隐藏行为需在 Windows 上手工验收。
+
+编辑已启用的认领动作时，宿主仅按需激活当前插件以取得声明，避免未预加载时看不到新选项；不会扫描并加载全部插件，也不会修改启用／预加载偏好。参数校验本身仍不触发加载。宿主回归在相邻官方仓库已有 Release 产物时，还会将三插件复制到隔离临时目录验证冷启动编辑路径，不执行动作。
+
+Launch、Command、ShellTool 1.1.0 的生产清单要求最低宿主 `1.8.0-beta.5` 与 SDK API 1.8。主程序版本已同步为 `1.8.0-beta.5`，满足这些兼容条件。宿主回归可通过 STARPIE_OFFICIAL_PLUGIN_REPO 指定官方仓库，在隔离目录中验证生产清单可被接受以及三态参数渲染；不会修改原始插件清单或真实安装。
+
+## 官方目录协议 v2
+
+目录版本不是 SDK 或主程序发布版本。每个模块只有 id 与 versions；每个版本独立保存名称、功能、权限、资产完整性及兼容要求。最高兼容选择只使用该版本的 minHostVersion/maxHostVersion/apiVersion/targetFramework，不使用目录全局描述字段。缓存保留原始完整历史；缓存 v1 被拒绝且不自动联网刷新。无兼容版本时禁用下载，存在已装新版时不自动降级。旧客户端不支持 v2。

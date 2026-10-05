@@ -62,6 +62,7 @@ StarPie（原 WinPieGestures）是基于 **.NET 8、WPF 与 Win32** 的 Windows 
 | 架构边界、生命周期、模块归属 | [`docs/architecture.md`](docs/architecture.md) |
 | 插件 SDK、宿主、安装、动作、能力或卸载 | [`docs/plugin-system.md`](docs/plugin-system.md) |
 | 轮盘几何、渲染、DPI、主题、动画、设置 UI | [`docs/ui-and-wheel.md`](docs/ui-and-wheel.md) |
+| 桌宠轮盘会话、中心圆显隐与配置保留 | [`docs/desktop-pet-interaction-plan.md`](docs/desktop-pet-interaction-plan.md)、[`docs/plugin-system.md`](docs/plugin-system.md) |
 | 配置模型、序列化、导入导出、动作兼容 | [`docs/config-compatibility.md`](docs/config-compatibility.md) |
 | 钩子、SendInput、全屏、UIPI、托盘或窗口 | [`docs/windows-integration.md`](docs/windows-integration.md) |
 | 测试、复现、证据、人工门禁 | [`docs/testing.md`](docs/testing.md) |

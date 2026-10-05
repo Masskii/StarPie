@@ -78,6 +78,9 @@ internal static class PluginPaths
     /// <summary>宿主运维数据：失败计数 / 安全模式标记。</summary>
     public static string HealthFile => Path.Combine(Root, "health.json");
 
+    /// <summary>官方插件 catalog 的本地缓存。网络只在用户主动刷新或安装引导时访问。</summary>
+    public static string OfficialCatalogCacheFile => Path.Combine(Root, "module-catalog.json");
+
     /// <summary>插件日志目录（与主日志同根，按插件分文件）。</summary>
     public static string LogDirectory => Path.Combine(AppLogger.GetLogFolderPath(), "plugins");
 

@@ -89,6 +89,7 @@ internal sealed class PluginInvocationLease : IDisposable
 /// </summary>
 internal sealed class PluginInstance
 {
+    private static long _globalGenerationCounter;
     private readonly object _gate = new();
     private readonly object _loadGate = new();
     private bool _acceptingCalls;
@@ -106,6 +107,9 @@ internal sealed class PluginInstance
     }
 
     public string PluginId { get; }
+
+    /// <summary>当前实例的加载代际标识，重载或新实例时递增。</summary>
+    public long GenerationId { get; private set; } = Interlocked.Increment(ref _globalGenerationCounter);
 
     public PluginRegistryEntry Entry { get; set; }
 
@@ -278,6 +282,7 @@ internal sealed class PluginInstance
         }
 
         try { cancellation.Cancel(); } catch { }
+        try { StickyWheelSession.RevokePluginCallbacks(PluginId, this, GenerationId); } catch { }
         return drainTask;
     }
 
@@ -366,6 +371,10 @@ internal sealed class PluginInstance
     private bool LoadCore(out string failureReason)
     {
         failureReason = "";
+        lock (_gate)
+        {
+            GenerationId = Interlocked.Increment(ref _globalGenerationCounter);
+        }
         SetState(PluginRuntimeState.Loading);
 
         try
@@ -507,7 +516,7 @@ internal sealed class PluginInstance
             _session = PluginHost.Catalog.BeginSession(PluginId);
             _events = new PluginEventService(this);
             _pluginContext = new PluginContext(
-                metadata, Directory, dataDirectory, _session, Logger, Settings, _events);
+                metadata, Directory, dataDirectory, _session, Logger, Settings, _events, this);
 
             // ⑥ 交给插件注册贡献点。这是唯一一次执行插件代码的初始化时机。
             try
@@ -645,6 +654,7 @@ internal sealed class PluginInstance
         try
         {
             _events?.RevokeAll();
+            StickyWheelSession.RevokePluginCallbacks(PluginId, this, GenerationId);
         }
         catch (Exception ex)
         {

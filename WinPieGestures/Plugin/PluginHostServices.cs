@@ -182,7 +182,13 @@ internal sealed class PluginHostActionInvoker : IHostActionInvoker
 {
     private readonly string _pluginId;
 
-    public PluginHostActionInvoker(string pluginId) => _pluginId = pluginId;
+    private readonly PluginCapability _capabilities;
+
+    public PluginHostActionInvoker(string pluginId, PluginCapability capabilities = PluginCapability.None)
+    {
+        _pluginId = pluginId;
+        _capabilities = capabilities;
+    }
 
     public bool SendHotkey(string hotkey)
     {
@@ -200,6 +206,14 @@ internal sealed class PluginHostActionInvoker : IHostActionInvoker
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
         return Guard(nameof(Launch), () => ActionExecutor.ExecuteLaunch(path, arguments ?? "", runAsStandardUser));
+    }
+
+    public bool LaunchWithMode(string path, ProcessLaunchMode mode, string arguments = "")
+    {
+        if ((_capabilities & PluginCapability.Process) != PluginCapability.Process)
+            throw new PluginCapabilityDeniedException(PluginCapability.Process, nameof(LaunchWithMode), _pluginId);
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        return Guard(nameof(LaunchWithMode), () => ActionExecutor.ExecuteLaunchWithMode(path, arguments ?? "", mode));
     }
 
     public bool OpenFolder(string folderPath)
@@ -258,6 +272,16 @@ internal sealed class PluginHostActionInvoker : IHostActionInvoker
     /// 统一包裹：插件通过宿主服务触发的任何异常都不允许冒泡到 <see cref="ActionExecutor.Execute"/>，
     /// 否则会命中它内部的 MessageBox 分支，在无人值守时卡住动作线程。
     /// </summary>
+    private bool Guard(string operation, Func<bool> action)
+    {
+        try { return action(); }
+        catch (Exception ex)
+        {
+            AppLogger.LogError($"[plugin:{_pluginId}] 宿主动作服务 {operation} 执行失败", ex);
+            return false;
+        }
+    }
+
     private bool Guard(string operation, Action action)
     {
         try
@@ -383,6 +407,13 @@ internal sealed class PluginCommandService : PluginGatedService, IHostCommandSer
         }
     }
 
+    public bool RunWithMode(string command, ProcessLaunchMode mode, string terminal = "cmd")
+    {
+        RequireCapability();
+        if (string.IsNullOrWhiteSpace(command)) return false;
+        return Guard(nameof(RunWithMode), () => ActionExecutor.ExecuteCommandWithMode(command, mode, terminal ?? "cmd"));
+    }
+
     public bool Run(string command, string terminal = "cmd")
     {
         RequireCapability();
@@ -433,6 +464,13 @@ internal sealed class PluginShellService : PluginGatedService, IHostShellService
             }
             return list;
         }
+    }
+
+    public bool InvokeWithMode(string verb, ProcessLaunchMode mode)
+    {
+        RequireCapability();
+        if (string.IsNullOrWhiteSpace(verb)) return false;
+        return Guard(nameof(InvokeWithMode), () => ActionExecutor.ExecuteShellToolWithMode(verb, mode));
     }
 
     public bool Invoke(string verb)
@@ -679,14 +717,26 @@ internal sealed class PluginSystemService : PluginGatedService, IHostSystemServi
 /// 轮盘照常可用，理由见该类的说明。
 /// </para>
 /// </summary>
-internal sealed class PluginWheelService : PluginGatedService, IHostWheelService
+internal sealed class PluginWheelService : PluginGatedService, IHostWheelSessionService
 {
     private readonly string _pluginId;
+    private readonly PluginInstance? _instance;
+    private readonly long _generationId;
+
+    internal PluginWheelService(PluginInstance instance, PluginCapability capabilities)
+        : base(instance.PluginId, capabilities, PluginCapability.Wheel, nameof(IHostWheelService))
+    {
+        _instance = instance;
+        _pluginId = instance.PluginId;
+        _generationId = instance.GenerationId;
+    }
 
     public PluginWheelService(string pluginId, PluginCapability capabilities)
         : base(pluginId, capabilities, PluginCapability.Wheel, nameof(IHostWheelService))
     {
         _pluginId = pluginId;
+        _instance = PluginHost.Find(pluginId);
+        _generationId = _instance?.GenerationId ?? 0;
     }
 
     public bool ShowWheel(double physicalCenterX, double physicalCenterY)
@@ -699,6 +749,33 @@ internal sealed class PluginWheelService : PluginGatedService, IHostWheelService
     {
         RequireCapability();
         return Guard(nameof(DismissWheel), () => StickyWheelSession.Dismiss(_pluginId));
+    }
+
+    public IDisposable? RequestTrackedWheel(
+        double physicalCenterX,
+        double physicalCenterY,
+        Action<WheelSessionStateChangedEventArgs> onStateChanged,
+        Action<WheelSelectionChangedEventArgs> onSelectionChanged)
+    {
+        RequireCapability();
+        try
+        {
+            PluginInstance? owner = _instance ?? PluginHost.Find(_pluginId);
+            long gen = _instance != null ? _generationId : (owner?.GenerationId ?? 0);
+            return StickyWheelSession.RequestTracked(
+                _pluginId,
+                physicalCenterX,
+                physicalCenterY,
+                onStateChanged,
+                onSelectionChanged,
+                owner,
+                gen);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError($"[plugin:{_pluginId}] IHostWheelSessionService.RequestTrackedWheel 执行失败", ex);
+            return null;
+        }
     }
 }
 

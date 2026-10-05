@@ -21,7 +21,8 @@ internal sealed class PluginContext : IPluginContext
         PluginRegistrationSession session,
         PluginLogger logger,
         PluginSettings settings,
-        PluginEventService events)
+        PluginEventService events,
+        PluginInstance instance)
     {
         Me = metadata;
         PluginDirectory = pluginDirectory;
@@ -34,7 +35,7 @@ internal sealed class PluginContext : IPluginContext
         I18n = new PluginI18nRegistry(session, metadata.Id);
         Icons = new PluginIconRegistry(session, metadata.Id);
         SettingsPage = new PluginSettingsPageRegistry(session, metadata.Id, settings);
-        Host = new PluginHostActionInvoker(metadata.Id);
+        Host = new PluginHostActionInvoker(metadata.Id, metadata.Capabilities);
 
         // 这四个服务带能力门禁：构造时就把清单里的 Capabilities 交给它们，
         // 未声明对应能力的插件拿到的是一个「调用即拒绝」的对象。
@@ -46,7 +47,7 @@ internal sealed class PluginContext : IPluginContext
         Windows = new PluginWindowService(metadata.Id, metadata.Capabilities);
         ScreenCapture = new PluginScreenCaptureService(metadata.Id, metadata.Capabilities);
         System = new PluginSystemService(metadata.Id, metadata.Capabilities);
-        Wheel = new PluginWheelService(metadata.Id, metadata.Capabilities);
+        Wheel = new PluginWheelService(instance, metadata.Capabilities);
         KeyboardRemap = new PluginKeyboardRemapService(metadata.Id, metadata.Capabilities);
 
         Info = new PluginHostInfo(metadata.Capabilities);

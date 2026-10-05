@@ -1240,6 +1240,8 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("Tab1_TextOffsetXLabel", "水平 X:", "水平 X:", "Horizontal X:", "水平 X:");
 		Add("Tab1_TextOffsetYLabel", "垂直 Y:", "垂直 Y:", "Vertical Y:", "垂直 Y:");
 		Add("CoreSectionTitle", "中心核心圆与图案文字设置", "中心核心圓與圖案文字設定", "Center Core Circle & Pattern/Text Settings", "センターコア＆パターン・テキスト設定");
+		Add("ShowCoreCircleTitle", "显示中心核心圆", "顯示中心核心圓", "Show Center Core Circle", "センターコアを表示");
+		Add("ShowCoreCircleDesc", "开启后在轮盘中心显示核心圆底色、边框与图案文字；关闭后隐藏中心圆视觉元素，但依然保留中心死区防抖与中心动作判定。", "開啟後在輪盤中心顯示核心圓底色、邊框與圖案文字；關閉後隱藏中心圓視覺元素，但依然保留中心死區防抖與中心動作判定。", "When enabled, renders the center core circle, border, and pattern/text. When disabled, visually hides the core while preserving deadzone protection and center action hit testing.", "有効にするとホイール中央にコア円、境界線、パターン/テキストを表示します。無効にすると外観は非表示になりますが、デッドゾーンと中央アクションの判定は保持されます。");
 		Add("ShowCoreIconTitle", "启用中心图案/图标显示", "啟用中心圖案/圖示顯示", "Enable Center Pattern/Icon Display", "センターパターン/アイコン表示を有効化");
 		Add("Tab1_CorePatternTypeLabel", "图案类型:", "圖案類型:", "Pattern Type:", "パターンタイプ:");
 		Add("CoreIconTypeItemCrosshair", "精准十字准星", "精準十字準星", "Precision Crosshair", "高精度クロスヘア");
@@ -1360,7 +1362,9 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("FocusRestoreInheritBtnToolTip", "清除当前槽位的专属覆写，恢复继承全局方案对应方位的动作", "清除目前位置的專屬覆寫，恢復繼承全域方案對應方位的動作", "Clear local override for this slot and restore inheritance from global profile", "このスロットの個別上書きを解除し、グローバル設定の継承に戻します");
 		Add("FocusTestActionBtnText", "▶ 测试触发", "▶ 測試觸發", "▶ Test Trigger", "▶ テスト実行");
 		Add("TogglePauseHotkeysBtnText", "⏸️ 暂停全局热键", "⏸️ 暫停全域快速鍵", "⏸️ Pause Global Hotkeys", "⏸️ グローバルショートカットを一時停止");
+		Add("TogglePauseHotkeysBtnActiveText", "🔴 正在独占录制 (已暂停全局热键)", "🔴 正在獨佔錄入 (已暫停全域快速鍵)", "🔴 Recording Exclusively (Global Hotkeys Paused)", "🔴 独占記録中 (グローバルショートカット一時停止)");
 		Add("TogglePauseHotkeysBtnToolTip", "暂停桌面系统及其他软件的所有全局快捷键，在此独占录入快捷键而不会触发系统（如 Win+D、Alt+Tab、截屏等）或其他软件", "暫停桌面系統及其他軟體的所有全域快速鍵，在此獨佔錄入快速鍵而不會觸發系統（如 Win+D、Alt+Tab、截圖等）或其他軟體", "Pause all global shortcuts in Windows and other apps to record combinations without triggering system hotkeys (Win+D, Alt+Tab, etc.)", "システムや他アプリのグローバルショートカットを一時停止し、誤爆せずに安全に入力記録します");
+		Add("TogglePauseHotkeysBtnActiveToolTip", "当前桌面系统及所有其他软件全局热键已被暂时暂停！在此按下任意按键组合（如 Win+D、Alt+Tab、截屏）均可直接录入，不会触发外部动作。点击即可恢复。", "目前桌面系統及所有其他軟體全域快速鍵已被暫時暫停！在此按下任意按鍵組合（如 Win+D、Alt+Tab、截圖）均可直接錄入，不會觸發外部動作。點擊即可恢復。", "Global shortcuts are paused across Windows and all apps! Press any hotkey combination (Win+D, Alt+Tab, etc.) to record directly without triggering external actions. Click to resume.", "システムと全アプリのグローバルショートカットが一時停止されています。Win+DやAlt+Tab等のキー組み合わせを安全に直接記録できます。クリックして再開します。");
 		Add("FocusHotkeyBuilderBtnText", "⚙️ 拼装组合", "⚙️ 拼裝組合", "⚙️ Hotkey Builder", "⚙️ 組み合わせビルダー");
 		Add("FocusLaunchPathToolTip", "应用程序路径", "應用程式路徑", "Application executable path", "アプリケーション実行パス");
 		Add("FocusLaunchPickProgramBtnText", "📦 软件库选择...", "📦 軟體庫選擇...", "📦 Select from Apps...", "📦 アプリ一覧から選択...");
@@ -2060,10 +2064,29 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsCardNotLoaded", "未加载", "未載入", "not loaded", "未読み込み");
 		Add("PluginsCardPreloadCheckBox", "开机预加载", "開機預載入", "Preload", "起動時プリロード");
 		Add("PluginsCardRestartReason", "旧程序集尚未从内存释放，重启 StarPie 后才会完全生效。", "舊組件尚未從記憶體釋放，重新啟動 StarPie 後才會完全生效。", "The old assembly is still held in memory; it takes full effect only after restarting StarPie.", "古いアセンブリがまだメモリ上に残っています。StarPie を再起動すると完全に反映されます。");
-		Add("PluginsRestartPrompt", "插件 {0} 已停止，但旧程序集仍被占用。\n\n{1}\n\n现在立即重启 StarPie 吗？", "外掛 {0} 已停止，但舊組件仍被佔用。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？", "Plugin {0} has stopped, but its old assembly is still held in memory.\n\n{1}\n\nRestart StarPie now?", "プラグイン {0} は停止しましたが、古いアセンブリがまだ使用中です。\n\n{1}\n\nStarPie を今すぐ再起動しますか？");
+		Add("PluginsRestartPrompt", "插件 {0} 尚未完全停止或释放。\n\n{1}\n\n现在立即重启 StarPie 吗？", "外掛 {0} 尚未完全停止或釋放。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？", "Plugin {0} has not fully stopped or released its resources.\n\n{1}\n\nRestart StarPie now?", "プラグイン {0} は完全に停止していないか、リソースがまだ解放されていません。\n\n{1}\n\nStarPie を今すぐ再起動しますか？");
+		Add("PluginsUpdateRestartPrompt", "插件 {0} 的安装或更新未完成，旧版本尚未完全停止或文件仍被占用。\n\n{1}\n\n现在立即重启 StarPie 吗？重启后请再次执行安装或更新，不会自动继续。若文件被其他程序占用，还需先关闭占用程序。", "外掛 {0} 的安裝或更新未完成，舊版本尚未完全停止或檔案仍被佔用。\n\n{1}\n\n現在立即重新啟動 StarPie 嗎？重新啟動後請再次執行安裝或更新，不會自動繼續。若檔案被其他程式佔用，還需先關閉佔用程式。", "Installation or update of plugin {0} did not complete: the old version has not fully stopped or files are still in use.\n\n{1}\n\nRestart StarPie now? Run the installation or update again after restarting; it will not resume automatically. If another application holds the files, close that application too.", "プラグイン {0} のインストールまたは更新は完了していません。旧バージョンが完全に停止していないか、ファイルがまだ使用中です。\n\n{1}\n\nStarPie を今すぐ再起動しますか？再起動後にインストールまたは更新を再実行してください。自動では再開されません。他のアプリがファイルを使用している場合は、そのアプリも閉じてください。");
+		Add("PluginsRestartStartFailed", "无法启动新的 StarPie 进程", "無法啟動新的 StarPie 程序", "Could not start a new StarPie process", "新しい StarPie プロセスを起動できませんでした");
 		Add("PluginsRestartTitle", "重启 StarPie", "重新啟動 StarPie", "Restart StarPie", "StarPie を再起動");
 		Add("PluginsRestartFailed", "重启 StarPie 失败：{0}", "重新啟動 StarPie 失敗：{0}", "Failed to restart StarPie: {0}", "StarPie の再起動に失敗しました：{0}");
 		Add("PluginsCardSettingsButton", "⚙ 设置", "⚙ 設定", "⚙ Settings", "⚙ 設定");
+		Add("PluginsDetailButton", "详情", "詳細資料", "Details", "詳細");
+		Add("PluginsDetailTitle", "插件详情", "外掛詳細資料", "Plugin details", "プラグイン詳細");
+		Add("PluginsDetailDescription", "功能描述", "功能描述", "Description", "機能説明");
+		Add("PluginsDetailFeatures", "包含功能", "包含功能", "Included features", "含まれる機能");
+		Add("PluginsDetailCapabilities", "所需权限", "所需權限", "Required capabilities", "必要な権限");
+		Add("PluginsDetailMetadata", "插件信息", "外掛資訊", "Plugin information", "プラグイン情報");
+		Add("PluginsDetailAuthor", "作者", "作者", "Author", "作者");
+		Add("PluginsDetailLicense", "许可证", "授權條款", "License", "ライセンス");
+		Add("PluginsDetailVersion", "版本", "版本", "Version", "バージョン");
+		Add("PluginsDetailSource", "来源", "來源", "Source", "提供元");
+		Add("PluginsDetailPluginId", "插件 ID", "外掛 ID", "Plugin ID", "プラグイン ID");
+		Add("PluginsDetailTargetFramework", "运行框架", "執行框架", "Target framework", "ターゲット フレームワーク");
+		Add("PluginsDetailInstallPath", "安装路径", "安裝路徑", "Install path", "インストール パス");
+		Add("PluginsDetailDependencies", "插件依赖", "外掛相依", "Dependencies", "依存関係");
+		Add("PluginsDetailNoFeatures", "该插件暂未声明具体功能列表。", "此插件尚未宣告具體功能列表。", "This plugin has not declared a detailed feature list.", "このプラグインは詳細な機能一覧を宣言していません。");
+		Add("PluginsDetailSourceOfficial", "官方插件", "官方外掛", "Official plugin", "公式プラグイン");
+		Add("PluginsDetailSourceLocal", "本地安装", "本機安裝", "Local installation", "ローカルインストール");
 		Add("PluginsCardSigned", "已签名", "已簽章", "signed", "署名済み");
 		Add("PluginsCardUninstallButton", "🗑 卸载", "🗑 解除安裝", "🗑 Uninstall", "🗑 アンインストール");
 		Add("PluginsCardUnsigned", "未签名", "未簽章", "unsigned", "未署名");
@@ -2116,10 +2139,19 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsMsgTitle", "StarPie 插件", "StarPie 外掛", "StarPie Plugins", "StarPie プラグイン");
 		Add("PluginsNotAPlugin", "这个文件不能作为 StarPie 插件安装。\n\n原因：{0}\n详情：{1}\n\n建议：{2}\n\n文件：{3}", "這個檔案不能作為 StarPie 外掛安裝。\n\n原因：{0}\n詳情：{1}\n\n建議：{2}\n\n檔案：{3}", "This file cannot be installed as a StarPie plugin.\n\nReason: {0}\nDetails: {1}\n\nSuggestion: {2}\n\nFile: {3}", "このファイルは StarPie プラグインとしてインストールできません。\n\n理由：{0}\n詳細：{1}\n\n推奨：{2}\n\nファイル：{3}");
 		Add("PluginsNotReady", "插件系统尚未完成初始化。请稍候片刻再试，或重启 StarPie。", "外掛系統尚未完成初始化。請稍候片刻再試，或重新啟動 StarPie。", "The plugin system has not finished initializing yet. Please wait a moment and try again, or restart StarPie.", "プラグインシステムの初期化が完了していません。しばらく待ってから再試行するか、StarPie を再起動してください。");
+        Add("PluginsCompatibilityHostOld", "需要主程序 ≥ {0}，当前为 {1}", "需要主程式 ≥ {0}，目前為 {1}", "Requires StarPie ≥ {0}; current: {1}", "StarPie {0} 以上が必要です（現在: {1}）");
+        Add("PluginsCompatibilityHostNew", "支持主程序 ≤ {0}，当前为 {1}", "支援主程式 ≤ {0}，目前為 {1}", "Supports StarPie ≤ {0}; current: {1}", "StarPie {0} 以下に対応（現在: {1}）");
+        Add("PluginsCompatibilityApi", "需要 SDK API {0}，当前支持 {1}", "需要 SDK API {0}，目前支援 {1}", "Requires SDK API {0}; supported: {1}", "SDK API {0} が必要です（対応: {1}）");
+        Add("PluginsCompatibilityFramework", "需要目标框架 {0}，当前为 {1}", "需要目標框架 {0}，目前為 {1}", "Requires target framework {0}; current: {1}", "対象フレームワーク {0} が必要です（現在: {1}）");
+        Add("PluginsCompatibilityInvalid", "版本或兼容性信息无效，请刷新目录", "版本或相容性資訊無效，請重新整理目錄", "Invalid version or compatibility metadata. Refresh the catalog.", "バージョンまたは互換性情報が無効です。カタログを更新してください。");
+        Add("PluginsOfficialActionUnavailable", "当前环境不可安装", "目前環境無法安裝", "Unavailable for this host", "現在の環境ではインストール不可");
+        Add("PluginsOfficialStateCompatibleCurrent", "已是当前环境的最新兼容版本", "已是目前環境的最新相容版本", "Latest compatible version installed", "最新の互換バージョンを導入済み");
+        Add("PluginsOfficialStateInstalledNewer", "已安装版本较新，不自动降级", "已安裝版本較新，不自動降級", "A newer version is installed; no automatic downgrade", "より新しいバージョンを導入済み（自動ダウングレードなし）");
 		Add("PluginsOfficialActionInstall", "⬇️ 下载并安装", "⬇️ 下載並安裝", "⬇️ Download and install", "⬇️ ダウンロードしてインストール");
 		Add("PluginsOfficialActionInstalled", "已安装", "已安裝", "Installed", "インストール済み");
 		Add("PluginsOfficialActionUpdate", "⬆️ 更新", "⬆️ 更新", "⬆️ Update", "⬆️ 更新");
 		Add("PluginsOfficialCatalogInfo", "目录 {0} · {1} 个模块 · 来源 StarPie-Official-Plugins", "目錄 {0} · {1} 個模組 · 來源 StarPie-Official-Plugins", "Catalog {0} · {1} modules · from StarPie-Official-Plugins", "カタログ {0} · {1} モジュール · 提供元 StarPie-Official-Plugins");
+		Add("PluginsOfficialCatalogCached", "官方插件目录：已缓存 · 更新于 {0} · {1} 个模块", "官方外掛目錄：已快取 · 更新於 {0} · {1} 個模組", "Official plugin catalog: cached · updated {0} · {1} modules", "公式プラグインカタログ：キャッシュ済み · 更新 {0} · {1} モジュール");
 		Add("PluginsOfficialClaimSeparator", "、", "、", ", ", "、");
 		Add("PluginsOfficialHeader", "官方插件", "官方外掛", "Official plugins", "公式プラグイン");
 		Add("PluginsOfficialInstallFailed", "官方插件 {0} 安装失败：\n\n{1}", "官方外掛 {0} 安裝失敗：\n\n{1}", "Failed to install official plugin {0}:\n\n{1}", "公式プラグイン {0} のインストールに失敗しました：\n\n{1}");
@@ -2285,6 +2317,16 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsOnboardingBannerText", "尚有 {0} 项官方核心插件未安装。安装后可使用打开文件夹、启动程序、网页跳转、系统控制等常用内置动作。", "尚有 {0} 項官方核心外掛未安裝。安裝後可使用開啟資料夾、啟動程式、網頁跳轉、系統控制等常用內建動作。", "{0} official core plugin(s) are not installed. Install them to use commonly used built-in actions like Open Folder, Launch App, Web URL, and System Control.", "公式コアプラグインが {0} 件未導入です。インストールするとフォルダーを開く、アプリ起動、Web ページ、システム制御などの機能が使用可能になります。");
 		Add("PluginsOnboardingBannerButton", "⬇️ 一键安装缺失项", "⬇️ 一鍵安裝缺失項", "⬇️ Install Missing Plugins", "⬇️ 不足プラグインを一括導入");
 		Add("PluginsOnboardingOpenDialogFailed", "无法打开官方插件安装引导窗口：{0}", "無法開啟官方外掛安裝引導視窗：{0}", "Failed to open official plugins onboarding dialog: {0}", "公式プラグインの導入ガイドウィンドウを開けませんでした: {0}");
+
+		// --- R7 文件选择与独占录制提示四语言本地化 (F4) ---
+		Add("FileDialogFilterExecutable", "应用程序 (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|所有文件 (*.*)|*.*", "應用程式 (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|所有檔案 (*.*)|*.*", "Applications (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|All Files (*.*)|*.*", "実行可能ファイル (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|すべてのファイル (*.*)|*.*");
+		Add("FileDialogTitleSelectProgram", "选择要启动的应用程序或快捷方式", "選擇要啟動的應用程式或捷徑", "Select application or shortcut to launch", "起動するアプリケーションまたはショートカットを選択");
+		Add("FolderDialogDescription", "选择要打开的本地文件夹", "選擇要開啟的本機資料夾", "Select folder to open", "開くフォルダーを選択");
+		Add("ExclusiveRecordingStatePrompt", "🔴 全局热键已暂停，请按下快捷键组合 (如 Win+D、Alt+Tab)...", "🔴 全域快速鍵已暫停，請按下快速鍵組合 (如 Win+D、Alt+Tab)...", "🔴 Global hotkeys paused; press a key combination (e.g. Win+D, Alt+Tab)...", "🔴 グローバルキー一時停止中、キーを入力してください (例: Win+D, Alt+Tab)...");
+		Add("ExclusiveRecordingModifiersPrompt", "🔴 {0} + ... (按Esc取消)", "🔴 {0} + ... (按Esc取消)", "🔴 {0} + ... (Press Esc to cancel)", "🔴 {0} + ... (Escでキャンセル)");
+		Add("ExclusiveRecordingBalloonActivated", "⏸️ 已暂时暂停桌面系统及其他软件全局快捷键，在此按下目标按键组合进行录入（按 Esc 取消）", "⏸️ 已暫時暫停桌面系統及其他軟體全域快速鍵，在此按下目標按鍵組合進行錄入（按 Esc 取消）", "⏸️ Global hotkeys temporarily paused; press target keys to record (Esc to cancel)", "⏸️ グローバルキーを一時停止しました。キーを押して記録してください（Escでキャンセル）");
+		Add("ExclusiveRecordingBalloonRestored", "▶️ 已恢复全局热键与按键正常监听", "▶️ 已恢復全域快速鍵與按鍵正常監聽", "▶️ Global hotkeys and normal key listening restored", "▶️ グローバルキーと通常のキー監視を再開しました");
+		Add("ExclusiveRecordingBalloonRecorded", "✅ 已录制快捷键: {0}（已恢复全局热键）", "✅ 已錄入快速鍵: {0}（已恢復全域快速鍵）", "✅ Recorded hotkey: {0} (Global hotkeys restored)", "✅ ショートカットを記録しました: {0}（グローバルキー復帰）");
 
 		Translations = dictionary;
 	}
