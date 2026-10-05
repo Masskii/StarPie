@@ -3478,9 +3478,9 @@ public class SoundForensicsSuite
 				string text = File.ReadAllText(resolvedFile);
 				bool hasHandlePointerSound = text.Contains("SoundEffectManager.Play(SoundType.SectorHover") || text.Contains("SoundEffectManager.ReportHover(");
 				bool hasExecuteInHandlePress = text.Contains("SoundEffectManager.Play(SoundType.ActionExecute");
-				bool hasCloseUiBeforeExecute = text.IndexOf("CloseUi(session);") >= 0 &&
+				bool hasCloseUiBeforeExecute = text.IndexOf("CloseUi(session, reason);") >= 0 &&
 					text.IndexOf("SoundEffectManager.Play(SoundType.ActionExecute") >= 0 &&
-					text.IndexOf("CloseUi(session);") < text.IndexOf("SoundEffectManager.Play(SoundType.ActionExecute");
+					text.IndexOf("CloseUi(session, reason);") < text.IndexOf("SoundEffectManager.Play(SoundType.ActionExecute");
 				stickyWheelAuditVerified = hasHandlePointerSound && hasExecuteInHandlePress && hasCloseUiBeforeExecute;
 				if (!stickyWheelAuditVerified)
 				{
