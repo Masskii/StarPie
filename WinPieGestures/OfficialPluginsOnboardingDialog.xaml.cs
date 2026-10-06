@@ -22,6 +22,8 @@ public partial class OfficialPluginsOnboardingDialog : Window
     private readonly HashSet<string> _preExistingDisabledIds;
     private CancellationTokenSource? _installCts;
     private bool _hasBeenDisplayed;
+    private string _selectedChannel;
+    private bool _isUpdatingLocalization;
 
     internal bool HasBeenDisplayed => _hasBeenDisplayed;
 
@@ -30,6 +32,8 @@ public partial class OfficialPluginsOnboardingDialog : Window
         InitializeComponent();
         AppThemeManager.ApplyTheme(this, ConfigManager.CurrentConfig?.AppTheme ?? "System");
         _preExistingDisabledIds = new HashSet<string>(OfficialPluginOnboarding.GetOriginallyDisabledPluginIds(), StringComparer.OrdinalIgnoreCase);
+
+        _selectedChannel = OfficialPluginDownloadOptions.NormalizeChannel(ConfigManager.CurrentConfig?.UpdateProxySource);
 
         ApplyLocalization();
         PopulatePluginItems();
@@ -86,6 +90,7 @@ public partial class OfficialPluginsOnboardingDialog : Window
             if (LaterButton != null) LaterButton.IsEnabled = false;
             if (RetryButton != null) RetryButton.IsEnabled = false;
             if (DoneButton != null) DoneButton.IsEnabled = false;
+            if (ChannelComboBox != null) ChannelComboBox.IsEnabled = false;
 
             try
             {
@@ -134,7 +139,46 @@ public partial class OfficialPluginsOnboardingDialog : Window
         if (DoneButton != null) DoneButton.Content = I18n.T("OfficialPluginsOnboardingDoneBtn");
         if (HintTextBlock != null) HintTextBlock.Text = I18n.T("OfficialPluginsOnboardingHint");
 
+        if (ChannelLabelTextBlock != null) ChannelLabelTextBlock.Text = I18n.T("OfficialPluginsOnboardingChannelLabel");
+        if (ChannelHintTextBlock != null) ChannelHintTextBlock.Text = I18n.T("OfficialPluginsOnboardingChannelHint");
+
+        _isUpdatingLocalization = true;
+        try
+        {
+            if (ChannelGhfastItem != null) ChannelGhfastItem.Content = I18n.T("UpdateProxyGhproxy");
+            if (ChannelGhproxyItem != null) ChannelGhproxyItem.Content = I18n.T("UpdateProxyMoeyy");
+            if (ChannelMirrorItem != null) ChannelMirrorItem.Content = I18n.T("UpdateProxyAkams");
+            if (ChannelDirectItem != null) ChannelDirectItem.Content = I18n.T("UpdateProxyDirect");
+            SelectChannelItem(_selectedChannel);
+        }
+        finally
+        {
+            _isUpdatingLocalization = false;
+        }
+
         PopulatePluginItems();
+    }
+
+    private void SelectChannelItem(string channel)
+    {
+        if (ChannelComboBox == null) return;
+        foreach (var item in ChannelComboBox.Items)
+        {
+            if (item is ComboBoxItem cbi && string.Equals(cbi.Tag as string, channel, StringComparison.OrdinalIgnoreCase))
+            {
+                ChannelComboBox.SelectedItem = cbi;
+                return;
+            }
+        }
+    }
+
+    private void ChannelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingLocalization) return;
+        if (ChannelComboBox?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+        {
+            _selectedChannel = OfficialPluginDownloadOptions.NormalizeChannel(tag);
+        }
     }
 
     private void PopulatePluginItems()
@@ -267,6 +311,8 @@ public partial class OfficialPluginsOnboardingDialog : Window
         if (_isInstalling) return;
         _isInstalling = true;
 
+        var downloadOptions = new OfficialPluginDownloadOptions(_selectedChannel);
+
         _installCts?.Dispose();
         _installCts = new CancellationTokenSource();
         CancellationToken cancellationToken = _installCts.Token;
@@ -274,6 +320,7 @@ public partial class OfficialPluginsOnboardingDialog : Window
         InstallButton.IsEnabled = false;
         LaterButton.IsEnabled = false;
         RetryButton.IsEnabled = false;
+        if (ChannelComboBox != null) ChannelComboBox.IsEnabled = false;
 
         ProgressArea.Visibility = Visibility.Visible;
         InstallProgressBar.Value = 0;
@@ -306,7 +353,8 @@ public partial class OfficialPluginsOnboardingDialog : Window
                 },
                 progress: progressReporter,
                 cancellationToken: cancellationToken,
-                preExistingDisabledPluginIds: _preExistingDisabledIds
+                preExistingDisabledPluginIds: _preExistingDisabledIds,
+                downloadOptions: downloadOptions
             );
 
             if (!IsLoaded || _isCancellingAndClosing) return;
@@ -384,6 +432,7 @@ public partial class OfficialPluginsOnboardingDialog : Window
         finally
         {
             _isInstalling = false;
+            if (ChannelComboBox != null) ChannelComboBox.IsEnabled = true;
         }
     }
 

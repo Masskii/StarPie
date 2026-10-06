@@ -71,6 +71,93 @@
           </Setter.Value>
         </Setter>
       </Style>
+      <ControlTemplate x:Key="DialogComboBoxToggleButtonTemplate" TargetType="{x:Type ToggleButton}">
+        <Border Name="templateRoot" Background="{TemplateBinding Control.Background}" BorderBrush="{TemplateBinding Control.BorderBrush}" BorderThickness="{TemplateBinding Control.BorderThickness}" CornerRadius="6" SnapsToDevicePixels="True">
+          <Border Name="splitBorder" Width="26" HorizontalAlignment="Right" SnapsToDevicePixels="True">
+            <Path Name="arrow" Data="M0,0 L4.5,4.5 L9,0" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5" SnapsToDevicePixels="True" />
+          </Border>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="UIElement.IsMouseOver" Value="True">
+            <Setter TargetName="templateRoot" Value="{DynamicResource AccentPrimaryBrush}" Property="Border.BorderBrush" />
+            <Setter TargetName="arrow" Value="{DynamicResource AccentPrimaryBrush}" Property="Shape.Stroke" />
+          </Trigger>
+          <Trigger Property="ToggleButton.IsChecked" Value="True">
+            <Setter TargetName="templateRoot" Value="{DynamicResource AccentPrimaryBrush}" Property="Border.BorderBrush" />
+            <Setter TargetName="arrow" Value="{DynamicResource AccentPrimaryBrush}" Property="Shape.Stroke" />
+          </Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+      <Style x:Key="DialogComboBoxItemStyle" TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="UIElement.SnapsToDevicePixels" Value="True" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FrameworkElement.Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+              <Border Name="bd" Background="{TemplateBinding Control.Background}" CornerRadius="4" Margin="2,1" Padding="{TemplateBinding Control.Padding}" SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="ComboBoxItem.IsHighlighted" Value="True">
+                  <Setter TargetName="bd" Value="{DynamicResource ItemHoverBrush}" Property="Border.Background" />
+                  <Setter Value="{DynamicResource TextPrimaryBrush}" Property="Foreground" />
+                </Trigger>
+                <Trigger Property="ListBoxItem.IsSelected" Value="True">
+                  <Setter TargetName="bd" Value="{DynamicResource AccentPrimaryBrush}" Property="Border.Background" />
+                  <Setter Value="{DynamicResource AccentTextBrush}" Property="Foreground" />
+                  <Setter Property="FontWeight" Value="SemiBold" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style x:Key="DialogComboBoxStyle" TargetType="{x:Type ComboBox}">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource DialogComboBoxItemStyle}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type ComboBox}">
+              <Grid Name="templateRoot" SnapsToDevicePixels="True">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition MinWidth="26" Width="0" />
+                </Grid.ColumnDefinitions>
+                <Popup Name="PART_Popup" AllowsTransparency="True" Grid.ColumnSpan="2" Margin="1" PopupAnimation="Fade" Placement="Bottom" IsOpen="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource Mode=TemplatedParent}}">
+                  <Border Name="dropDownBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" MaxHeight="{TemplateBinding ComboBox.MaxDropDownHeight}" Padding="4" Margin="0,4,0,4" SnapsToDevicePixels="True" MinWidth="{Binding ActualWidth, ElementName=templateRoot}">
+                    <UIElement.Effect>
+                      <DropShadowEffect BlurRadius="12" ShadowDepth="3" Color="#000000" Opacity="0.25" />
+                    </UIElement.Effect>
+                    <ScrollViewer Name="DropDownScrollViewer" CanContentScroll="True">
+                      <ItemsPresenter Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" SnapsToDevicePixels="{TemplateBinding UIElement.SnapsToDevicePixels}" />
+                    </ScrollViewer>
+                  </Border>
+                </Popup>
+                <ToggleButton Name="toggleButton" Background="{TemplateBinding Control.Background}" BorderBrush="{TemplateBinding Control.BorderBrush}" BorderThickness="{TemplateBinding Control.BorderThickness}" Grid.ColumnSpan="2" Template="{StaticResource DialogComboBoxToggleButtonTemplate}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource Mode=TemplatedParent}}" />
+                <ContentPresenter Name="contentPresenter" ContentStringFormat="{TemplateBinding ComboBox.SelectionBoxItemStringFormat}" ContentTemplate="{TemplateBinding ComboBox.SelectionBoxItemTemplate}" Content="{TemplateBinding ComboBox.SelectionBoxItem}" ContentTemplateSelector="{TemplateBinding ItemsControl.ItemTemplateSelector}" HorizontalAlignment="Left" IsHitTestVisible="False" Margin="{TemplateBinding Control.Padding}" SnapsToDevicePixels="{TemplateBinding UIElement.SnapsToDevicePixels}" VerticalAlignment="Center" />
+              </Grid>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter TargetName="templateRoot" Property="UIElement.Opacity" Value="0.6" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
     </ResourceDictionary>
   </FrameworkElement.Resources>
   <Border Padding="20" Background="{DynamicResource CardBackgroundBrush}" Margin="8" CornerRadius="10" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
@@ -102,6 +189,30 @@
           <TextBlock Name="SecurityPermsTextBlock" Text="• 所需权限：进程启动（Process）、按键模拟（InputSimulation）" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2" />
           <TextBlock Name="SecurityDescTextBlock" Text="• 插件将在进程内以 StarPie 当前权限运行，并在安装前严格校验 SHA-256 文件哈希。在此确认前，不会发起任何网络请求。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" LineHeight="15" />
         </StackPanel>
+      </Border>
+
+      <!-- 下载通道选择卡片 -->
+      <Border Background="{DynamicResource SubtleCardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,0,0,14">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Name="ChannelLabelTextBlock" Text="下载通道：" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox Name="ChannelComboBox" Grid.Column="1" Height="28" VerticalAlignment="Center" Style="{StaticResource DialogComboBoxStyle}" SelectionChanged="ChannelComboBox_SelectionChanged">
+              <ComboBoxItem x:Name="ChannelGhfastItem" Tag="ghfast" Content="⚡ 镜像源 1 (ghfast.top 推荐)" />
+              <ComboBoxItem x:Name="ChannelGhproxyItem" Tag="gh-proxy" Content="⚡ 镜像源 2 (gh-proxy.com 备用)" />
+              <ComboBoxItem x:Name="ChannelMirrorItem" Tag="mirror" Content="⚡ 镜像源 3 (mirror.ghproxy.com)" />
+              <ComboBoxItem x:Name="ChannelDirectItem" Tag="direct" Content="🌐 官方直连" />
+            </ComboBox>
+          </Grid>
+          <TextBlock Name="ChannelHintTextBlock" Grid.Row="1" Text="若直连 GitHub 访问受限或失败，可切换上方加速镜像通道" FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="0,5,0,0" TextWrapping="Wrap" />
+        </Grid>
       </Border>
 
       <!-- 进度条与状态文字 -->

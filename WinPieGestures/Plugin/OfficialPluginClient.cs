@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -84,11 +85,13 @@ internal sealed class OfficialPluginInstallResult
     public string PluginId { get; init; } = "";
     public string Error { get; init; } = "";
     public bool Enabled { get; init; }
+    public bool IsNetworkError { get; init; }
 
     internal static OfficialPluginInstallResult FromInstallResult(PluginInstallResult result) => new()
     {
         Success = result.Success, PluginId = result.PluginId, Error = result.Error,
         Enabled = result.Enabled, RestartSuggested = result.RestartSuggested,
+        IsNetworkError = false,
     };
 }
 
@@ -101,6 +104,10 @@ internal static class OfficialPluginClient
     internal const string RepositoryUrl = "https://github.com/Star-Pie/StarPie-Official-Plugins";
     internal const string ReleasesFeedUrl = RepositoryUrl + "/releases.atom";
     private const long MaxPackageSize = 100L * 1024L * 1024L;
+
+    internal static HttpMessageHandler? HttpHandlerOverrideForTesting { get; set; }
+    internal static TimeSpan? DownloadTimeoutOverrideForTesting { get; set; }
+    internal static TimeSpan? CatalogTimeoutOverrideForTesting { get; set; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -120,18 +127,110 @@ internal static class OfficialPluginClient
         return client;
     }
 
-    public static async Task<OfficialPluginCatalog> FetchCatalogAsync(CancellationToken cancellationToken = default)
+    private static HttpClient GetHttpClient()
     {
-        // 不使用 GitHub REST Releases API：匿名 REST 调用共享严格的每小时限额，
-        // 容易在普通用户环境里返回 403。Atom feed 不消耗该 REST rate limit，
-        // 只用于找到最新已发布标签；真正的 catalog 与包仍从 Release 资产下载。
-        string releaseTag = await FetchLatestReleaseTagAsync(cancellationToken).ConfigureAwait(false);
-        string catalogUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(releaseTag)}/module-catalog.json";
-        byte[] catalogBytes = await Http.GetByteArrayAsync(catalogUrl, cancellationToken).ConfigureAwait(false);
-        OfficialPluginCatalog? catalog = JsonSerializer.Deserialize<OfficialPluginCatalog>(catalogBytes, JsonOptions);
-        ValidateCatalog(catalog);
-        if (!string.Equals(catalog!.ReleaseTag, releaseTag, StringComparison.Ordinal))
-            throw new InvalidDataException($"官方 catalog 的 releaseTag 与发布标签不一致：{catalog.ReleaseTag} / {releaseTag}。");
+        var customHandler = HttpHandlerOverrideForTesting;
+        if (customHandler != null)
+        {
+            var client = new HttpClient(customHandler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(45) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("StarPie/1.8 official-plugin-client");
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/atom+xml");
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+            return client;
+        }
+        return Http;
+    }
+
+    public static Task<OfficialPluginCatalog> FetchCatalogAsync(CancellationToken cancellationToken = default)
+        => FetchCatalogAsync(downloadOptions: null, cancellationToken);
+
+    public static async Task<OfficialPluginCatalog> FetchCatalogAsync(
+        OfficialPluginDownloadOptions? downloadOptions,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        TimeSpan timeout = CatalogTimeoutOverrideForTesting ?? TimeSpan.FromSeconds(30);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(timeout);
+        CancellationToken effectiveToken = linkedCts.Token;
+
+        IReadOnlyList<string> candidateTags;
+        try
+        {
+            candidateTags = await OfficialPluginReleaseDiscovery.DiscoverCandidateTagsAsync(
+                GetHttpClient(),
+                effectiveToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            throw new TimeoutException(I18n.T("OfficialPluginTimeoutAtom"), ex);
+        }
+
+        if (candidateTags == null || candidateTags.Count == 0)
+        {
+            throw new InvalidDataException("官方插件仓库尚未发布可用模块 catalog。");
+        }
+
+        OfficialPluginCatalog? catalog = null;
+        InvalidDataException? lastSchemaError = null;
+
+        foreach (string releaseTag in candidateTags)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            byte[] catalogBytes;
+            string catalogUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(releaseTag)}/module-catalog.json";
+            string transportCatalogUrl = downloadOptions?.GetProxiedUrl(catalogUrl) ?? catalogUrl;
+
+            try
+            {
+                catalogBytes = await GetHttpClient().GetByteArrayAsync(transportCatalogUrl, effectiveToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException ex)
+            {
+                throw new TimeoutException(I18n.T("OfficialPluginTimeoutCatalog"), ex);
+            }
+
+            OfficialPluginCatalog? parsedCatalog = JsonSerializer.Deserialize<OfficialPluginCatalog>(catalogBytes, JsonOptions);
+            if (parsedCatalog == null)
+            {
+                throw new InvalidDataException("官方插件 catalog 为空。");
+            }
+
+            if (parsedCatalog.SchemaVersion != 2)
+            {
+                AppLogger.LogInfo($"[plugin] 候选发布 {releaseTag} 的 catalog schemaVersion 为 {parsedCatalog.SchemaVersion} (非 v2)，尝试检查其他候选发布...");
+                lastSchemaError = new InvalidDataException("不支持的官方插件 catalog 版本；需要 catalog v2。请手动刷新目录。");
+                continue;
+            }
+
+            ValidateCatalog(parsedCatalog);
+            if (!string.Equals(parsedCatalog.ReleaseTag, releaseTag, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"官方 catalog 的 releaseTag 与发布标签不一致：{parsedCatalog.ReleaseTag} / {releaseTag}。");
+            }
+
+            catalog = parsedCatalog;
+            break;
+        }
+
+        if (catalog == null)
+        {
+            if (lastSchemaError != null)
+            {
+                throw lastSchemaError;
+            }
+            throw new InvalidDataException("官方插件仓库尚未发布可用的 v2 模块 catalog。");
+        }
 
         // 下载成功后写入本地缓存。缓存失败不应把成功的目录刷新误报成失败。
         try
@@ -230,41 +329,29 @@ internal static class OfficialPluginClient
         }
     }
 
-    private static async Task<string> FetchLatestReleaseTagAsync(CancellationToken cancellationToken)
+    private static Task<string> FetchLatestReleaseTagAsync(CancellationToken cancellationToken)
+        => FetchLatestReleaseTagAsync(ReleasesFeedUrl, cancellationToken);
+
+    private static async Task<string> FetchLatestReleaseTagAsync(string feedUrl, CancellationToken cancellationToken)
     {
-        string feed = await Http.GetStringAsync(ReleasesFeedUrl, cancellationToken).ConfigureAwait(false);
-        XDocument document = XDocument.Parse(feed, LoadOptions.None);
-        XNamespace atom = "http://www.w3.org/2005/Atom";
-
-        foreach (XElement entry in document.Descendants(atom + "entry"))
-        {
-            string? href = entry.Elements(atom + "link")
-                .Select(link => (string?)link.Attribute("href"))
-                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-            if (!Uri.TryCreate(href, UriKind.Absolute, out Uri? uri)) continue;
-
-            const string marker = "/Star-Pie/StarPie-Official-Plugins/releases/tag/";
-            int index = uri.AbsolutePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-            if (index < 0) continue;
-
-            string tag = Uri.UnescapeDataString(uri.AbsolutePath[(index + marker.Length)..]);
-            if (!string.IsNullOrWhiteSpace(tag)) return tag;
-        }
-
+        var candidates = await OfficialPluginReleaseDiscovery.DiscoverCandidateTagsAsync(GetHttpClient(), cancellationToken).ConfigureAwait(false);
+        if (candidates.Count > 0) return candidates[0];
         throw new InvalidDataException("官方插件仓库尚未发布可用模块 catalog。");
     }
 
     public static Task<OfficialPluginInstallResult> InstallAsync(
         OfficialPluginModule module,
-        CancellationToken cancellationToken = default)
-        => InstallAsync(module, extraCapabilityPrompter: null, approvedCapabilities: null, cancellationToken);
+        CancellationToken cancellationToken = default,
+        OfficialPluginDownloadOptions? downloadOptions = null)
+        => InstallAsync(module, extraCapabilityPrompter: null, approvedCapabilities: null, cancellationToken, forceEnable: null, downloadOptions: downloadOptions);
 
     public static async Task<OfficialPluginInstallResult> InstallAsync(
         OfficialPluginModule module,
         Func<string, List<string>, Task<bool>>? extraCapabilityPrompter,
         IReadOnlyCollection<string>? approvedCapabilities,
         CancellationToken cancellationToken = default,
-        bool? forceEnable = null)
+        bool? forceEnable = null,
+        OfficialPluginDownloadOptions? downloadOptions = null)
     {
         if (module == null) return new OfficialPluginInstallResult { Error = "官方插件条目为空。" };
         OfficialPluginCompatibility compatibility = OfficialPluginVersionSelector.Evaluate(module);
@@ -286,7 +373,7 @@ internal static class OfficialPluginClient
 
         try
         {
-            await DownloadPackageAsync(module, packagePath, cancellationToken).ConfigureAwait(false);
+            await DownloadPackageAsync(module, packagePath, downloadOptions, cancellationToken).ConfigureAwait(false);
             Directory.CreateDirectory(extractRoot);
             ExtractPackageSafely(packagePath, extractRoot);
 
@@ -366,14 +453,30 @@ internal static class OfficialPluginClient
 
             return OfficialPluginInstallResult.FromInstallResult(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return new OfficialPluginInstallResult { PluginId = module.Id, Error = "下载已取消。" };
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            AppLogger.LogWarn($"[plugin] 官方插件 {module.Id} 网络下载超时：{ex.Message}");
+            return new OfficialPluginInstallResult { PluginId = module.Id, Error = ex.Message, IsNetworkError = true };
+        }
+        catch (HttpRequestException ex)
+        {
+            AppLogger.LogWarn($"[plugin] 官方插件 {module.Id} 网络下载失败：{ex.Message}");
+            return new OfficialPluginInstallResult { PluginId = module.Id, Error = ex.Message, IsNetworkError = true };
+        }
+        catch (TimeoutException ex)
+        {
+            AppLogger.LogWarn($"[plugin] 官方插件 {module.Id} 网络下载超时：{ex.Message}");
+            return new OfficialPluginInstallResult { PluginId = module.Id, Error = ex.Message, IsNetworkError = true };
         }
         catch (Exception ex)
         {
+            bool isNet = ex is SocketException;
             AppLogger.LogWarn($"[plugin] 官方插件 {module.Id} 下载/安装失败：{ex.Message}");
-            return new OfficialPluginInstallResult { PluginId = module.Id, Error = ex.Message };
+            return new OfficialPluginInstallResult { PluginId = module.Id, Error = ex.Message, IsNetworkError = isNet };
         }
         finally
         {
@@ -391,6 +494,7 @@ internal static class OfficialPluginClient
     private static async Task DownloadPackageAsync(
         OfficialPluginModule module,
         string destination,
+        OfficialPluginDownloadOptions? downloadOptions,
         CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(module.PackageUrl, UriKind.Absolute, out Uri? uri)
@@ -404,33 +508,74 @@ internal static class OfficialPluginClient
         if (module.Size <= 0 || module.Size > MaxPackageSize)
             throw new InvalidDataException($"插件包大小不合法：{module.Size} 字节。");
 
-        using HttpResponseMessage response = await Http.GetAsync(
-            uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength is long length && length > MaxPackageSize)
-            throw new InvalidDataException("插件包超过 100 MiB 安全上限。");
-
-        await using Stream input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var buffer = new byte[81920];
-        long total = 0;
-        int read;
-        while ((read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
+        string transportUrl = downloadOptions?.GetProxiedUrl(module.PackageUrl) ?? module.PackageUrl;
+        if (!Uri.TryCreate(transportUrl, UriKind.Absolute, out Uri? transportUri))
         {
-            total += read;
-            if (total > MaxPackageSize) throw new InvalidDataException("插件包超过 100 MiB 安全上限。");
-            hasher.AppendData(buffer, 0, read);
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            throw new InvalidDataException($"无法解析插件包下载地址：{transportUrl}");
         }
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-        if (total != module.Size)
-            throw new InvalidDataException($"插件包大小校验失败：catalog={module.Size}，实际={total}。");
+        TimeSpan timeout = DownloadTimeoutOverrideForTesting ?? TimeSpan.FromSeconds(60);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(timeout);
+        CancellationToken effectiveToken = linkedCts.Token;
 
-        string actual = Convert.ToHexString(hasher.GetHashAndReset());
-        if (!string.Equals(actual, module.Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("插件包 SHA-256 校验失败，文件可能已被替换或损坏。");
+        try
+        {
+            using HttpResponseMessage response = await GetHttpClient().GetAsync(
+                transportUri, HttpCompletionOption.ResponseHeadersRead, effectiveToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength is long length && length > MaxPackageSize)
+                throw new InvalidDataException("插件包超过 100 MiB 安全上限。");
+
+            Stream input;
+            try
+            {
+                input = await response.Content.ReadAsStreamAsync(effectiveToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or SocketException)
+            {
+                throw new HttpRequestException(ex.Message, ex);
+            }
+
+            await using (input)
+            {
+                await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = new byte[81920];
+                long total = 0;
+                while (true)
+                {
+                    int read;
+                    try
+                    {
+                        read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), effectiveToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is IOException or SocketException)
+                    {
+                        throw new HttpRequestException(ex.Message, ex);
+                    }
+
+                    if (read <= 0) break;
+
+                    total += read;
+                    if (total > MaxPackageSize) throw new InvalidDataException("插件包超过 100 MiB 安全上限。");
+                    hasher.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), effectiveToken).ConfigureAwait(false);
+                }
+                await output.FlushAsync(effectiveToken).ConfigureAwait(false);
+
+                if (total != module.Size)
+                    throw new InvalidDataException($"插件包大小校验失败：catalog={module.Size}，实际={total}。");
+
+                string actual = Convert.ToHexString(hasher.GetHashAndReset());
+                if (!string.Equals(actual, module.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("插件包 SHA-256 校验失败，文件可能已被替换或损坏。");
+            }
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(I18n.T("OfficialPluginTimeoutPackage"), ex);
+        }
     }
 
     private static void VerifyModuleManifest(string packageRoot, OfficialPluginModule catalogModule)
