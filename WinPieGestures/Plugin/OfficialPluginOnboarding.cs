@@ -1,8 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace WinPieGestures.Plugins;
 
@@ -373,7 +378,8 @@ internal static class OfficialPluginOnboarding
         CancellationToken cancellationToken = default,
         Func<OfficialPluginModule, Func<string, List<string>, Task<bool>>?, IReadOnlyCollection<string>?, CancellationToken, Task<OfficialPluginInstallResult>>? detailedModuleInstaller = null,
         IReadOnlyCollection<string>? preExistingDisabledPluginIds = null,
-        LocalPluginEnabler? localEnabler = null)
+        LocalPluginEnabler? localEnabler = null,
+        OfficialPluginDownloadOptions? downloadOptions = null)
     {
         // 重入防护
         if (Interlocked.CompareExchange(ref _isInstalling, 1, 0) != 0)
@@ -545,8 +551,36 @@ internal static class OfficialPluginOnboarding
                     Message = I18n.T("OfficialPluginsOnboardingStatusFetchingCatalog")
                 });
 
-                catalogFetcher ??= OfficialPluginClient.FetchCatalogAsync;
-                OfficialPluginCatalog catalog = await catalogFetcher(cancellationToken).ConfigureAwait(false);
+                OfficialPluginCatalog catalog;
+                try
+                {
+                    if (catalogFetcher != null)
+                    {
+                        catalog = await catalogFetcher(cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        catalog = await OfficialPluginClient.FetchCatalogAsync(downloadOptions, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (ex is JsonException or XmlException or InvalidDataException)
+                    {
+                        throw;
+                    }
+                    if (ex is HttpRequestException or TimeoutException or SocketException or OperationCanceledException)
+                    {
+                        string channelName = downloadOptions?.Channel ?? "direct";
+                        string msg = I18n.TF("OfficialPluginsOnboardingCatalogNetworkError", channelName, ex.Message);
+                        throw new HttpRequestException(msg, ex);
+                    }
+                    throw;
+                }
 
                 if (catalog?.Modules == null)
                 {
@@ -672,7 +706,8 @@ internal static class OfficialPluginOnboarding
                                 extraCapabilityPrompter,
                                 informedCapabilities,
                                 cancellationToken,
-                                forceEnable: true).ConfigureAwait(false);
+                                forceEnable: true,
+                                downloadOptions: downloadOptions).ConfigureAwait(false);
                         }
 
                         if (installResult.Success)
@@ -707,9 +742,19 @@ internal static class OfficialPluginOnboarding
                         else
                         {
                             string fallbackReason = I18n.T("OfficialPluginsOnboardingUnknownError");
-                            string guidance = string.IsNullOrWhiteSpace(installResult.Error)
-                                ? I18n.TF("OfficialPluginsOnboardingInstallFailedGuidance", module.Name, fallbackReason)
-                                : installResult.Error;
+                            string rawError = string.IsNullOrWhiteSpace(installResult.Error) ? fallbackReason : installResult.Error;
+                            string guidance;
+                            if (installResult.IsNetworkError)
+                            {
+                                string channel = downloadOptions?.Channel ?? "direct";
+                                guidance = I18n.TF("OfficialPluginsOnboardingNetworkFailedWithChannelGuidance", module.Name, channel, rawError);
+                            }
+                            else
+                            {
+                                guidance = rawError.StartsWith(module.Name) || rawError.Contains("「" + module.Name + "」")
+                                    ? rawError
+                                    : I18n.TF("OfficialPluginsOnboardingInstallFailedGuidance", module.Name, rawError);
+                            }
                             report.FailedPlugins[id] = guidance;
                             report.ItemResults[id] = new OfficialPluginItemResult
                             {
@@ -720,9 +765,23 @@ internal static class OfficialPluginOnboarding
                             };
                         }
                     }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
                     catch (Exception ex)
                     {
-                        string guidance = I18n.TF("OfficialPluginsOnboardingInstallFailedGuidance", module.Name, ex.Message);
+                        bool isNet = ex is HttpRequestException or TimeoutException or SocketException;
+                        string guidance;
+                        if (isNet)
+                        {
+                            string channel = downloadOptions?.Channel ?? "direct";
+                            guidance = I18n.TF("OfficialPluginsOnboardingNetworkFailedWithChannelGuidance", module.Name, channel, ex.Message);
+                        }
+                        else
+                        {
+                            guidance = I18n.TF("OfficialPluginsOnboardingInstallFailedGuidance", module.Name, ex.Message);
+                        }
                         report.FailedPlugins[id] = guidance;
                         report.ItemResults[id] = new OfficialPluginItemResult
                         {
