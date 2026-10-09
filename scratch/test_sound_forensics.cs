@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using WinPieGestures;
@@ -3476,16 +3477,8 @@ public class SoundForensicsSuite
 			if (resolvedFile != null)
 			{
 				string text = File.ReadAllText(resolvedFile);
-				bool hasHandlePointerSound = text.Contains("SoundEffectManager.Play(SoundType.SectorHover") || text.Contains("SoundEffectManager.ReportHover(");
-				bool hasExecuteInHandlePress = text.Contains("SoundEffectManager.Play(SoundType.ActionExecute");
-				bool hasCloseUiBeforeExecute = text.IndexOf("CloseUi(session, reason);") >= 0 &&
-					text.IndexOf("SoundEffectManager.Play(SoundType.ActionExecute") >= 0 &&
-					text.IndexOf("CloseUi(session, reason);") < text.IndexOf("SoundEffectManager.Play(SoundType.ActionExecute");
-				stickyWheelAuditVerified = hasHandlePointerSound && hasExecuteInHandlePress && hasCloseUiBeforeExecute;
-				if (!stickyWheelAuditVerified)
-				{
-					auditFailureReason = $"静态代码审计不满足预期 (待人工GUI验证): hasHandlePointerSound={hasHandlePointerSound}, hasExecuteInHandlePress={hasExecuteInHandlePress}, hasCloseUiBeforeExecute={hasCloseUiBeforeExecute}";
-				}
+				stickyWheelAuditVerified = AuditStickyWheelSoundPath(text, out auditFailureReason);
+				TestStickyWheelAuditCounterexamples();
 			}
 			else
 			{
@@ -3514,7 +3507,114 @@ public class SoundForensicsSuite
 		Assert(path3Verified, "7C_PathCoverage_SettingsPreviewComplete",
 			"设置窗口预览与自定义参数试听真实调用链测试通过");
 
-		Log("  [Forensics 7 Metric] 调用路径审计完成：普通手势轮盘与设置预览全覆盖；粘滞轮盘缺少 ActionExecute 确认音");
+		Log("  [Forensics 7 Metric] 调用路径审计完成：普通手势与设置预览已验证；粘滞路径检查悬停、先关闭再确认音及动作入队结构，真实 GUI 时序仍待人工验收");
+	}
+	// 这是有边界的源码结构护栏，不是通用 C# 解析器，也不冒充真实 GUI 行为验证。
+	// 保持字符位置，避免注释/字符串中的伪调用或花括号改变方法边界。
+	private static string MaskStickyWheelNonCode(string source) => Regex.Replace(source,
+		@"//[^\r\n]*|/\*[\s\S]*?\*/|@""(?:[^""]|"""")*""|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'",
+		match => new string(match.Value.Select(c => c == '\r' || c == '\n' ? c : ' ').ToArray()));
+
+	private static string? FindStickyWheelMethod(string code, string name)
+	{
+		MatchCollection declarations = Regex.Matches(code,
+			@"\b(?:internal|private)\s+static\s+void\s+" + Regex.Escape(name) + @"\s*\([^;{}]*\)\s*\{");
+		if (declarations.Count != 1) return null;
+		int start = declarations[0].Index + declarations[0].Length;
+		int depth = 1;
+		for (int i = start; i < code.Length; i++)
+		{
+			if (code[i] == '{') depth++;
+			else if (code[i] == '}' && --depth == 0) return code.Substring(start, i - start);
+		}
+		return null;
+	}
+
+	private static bool IsUnconditionalTopLevelCall(string method, int callIndex)
+	{
+		int depth = 0;
+		int statementStart = 0;
+		for (int i = 0; i < callIndex; i++)
+		{
+			if (method[i] == '{') depth++;
+			else if (method[i] == '}')
+			{
+				depth--;
+				if (depth == 0) statementStart = i + 1;
+			}
+			else if (method[i] == ';' && depth == 0) statementStart = i + 1;
+		}
+		// 不接受 if (...) CloseUi(...) 这种无花括号的条件调用。
+		return depth == 0 && string.IsNullOrWhiteSpace(method.Substring(statementStart, callIndex - statementStart));
+	}
+
+	private static bool AuditStickyWheelSoundPath(string source, out string failureReason)
+	{
+		string code = MaskStickyWheelNonCode(source);
+		string? pointer = FindStickyWheelMethod(code, "HandlePointer");
+		string? press = FindStickyWheelMethod(code, "HandlePress");
+		if (pointer == null || press == null)
+		{
+			failureReason = "静态审计失败：HandlePointer/HandlePress 方法缺失、边界不完整或重复；不能用其他方法/注释替代";
+			return false;
+		}
+
+		bool hasHover = Regex.IsMatch(pointer, @"\bSoundEffectManager\s*\.\s*(?:ReportHover\s*\(|Play\s*\(\s*SoundType\s*\.\s*SectorHover\b)");
+		MatchCollection executes = Regex.Matches(press, @"\bSoundEffectManager\s*\.\s*Play\s*\(\s*SoundType\s*\.\s*ActionExecute\b");
+		MatchCollection enqueues = Regex.Matches(press, @"\bActionExecutor\s*\.\s*EnqueueAction\s*\(");
+		MatchCollection closes = Regex.Matches(press,
+			@"\bCloseUi\s*\(\s*session\s*,\s*reason\s*(?:,\s*(?:completeInteraction\s*:\s*)?(?<completion>false|true)\s*)?\)\s*;");
+		bool closesBeforeDispatch = closes.Count == 1 && executes.Count > 0 && enqueues.Count > 0 &&
+			IsUnconditionalTopLevelCall(press, closes[0].Index) &&
+			executes.Cast<Match>().All(call => closes[0].Index < call.Index) &&
+			enqueues.Cast<Match>().All(call => closes[0].Index < call.Index);
+		bool defersTerminal = !Regex.IsMatch(press, @"\busing\s+var\s+interactionCompletion\b") ||
+			(closes.Count == 1 && closes[0].Groups["completion"].Value == "false");
+		bool verified = hasHover && closesBeforeDispatch && defersTerminal;
+		failureReason = verified ? "" :
+			$"静态结构审计不满足预期（GUI 未验证）：hoverInHandlePointer={hasHover}, executeCalls={executes.Count}, enqueueCalls={enqueues.Count}, closeCalls={closes.Count}, closeBeforeDispatch={closesBeforeDispatch}, defersTerminal={defersTerminal}";
+		return verified;
+	}
+
+	private static void TestStickyWheelAuditCounterexamples()
+	{
+		// 只变异内存中的源码夹具；不改产品文件，不调用轮盘、音频或动作。
+		const string fixture = @"
+internal static void HandlePointer()
+{
+    SoundEffectManager.ReportHover(SoundSessionSource.StickyWheel, session.SoundSessionId);
+}
+internal static void HandlePress(bool leftButton)
+{
+    CloseUi(session, reason, completeInteraction: false);
+    using var interactionCompletion = session.Interaction;
+    if (target != null)
+    {
+        SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.StickyWheel, session.SoundSessionId);
+        ActionExecutor.EnqueueAction(target);
+    }
+}";
+		const string close = "CloseUi(session, reason, completeInteraction: false);";
+		const string play = "SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.StickyWheel, session.SoundSessionId);";
+		const string enqueue = "ActionExecutor.EnqueueAction(target);";
+		Assert(AuditStickyWheelSoundPath(fixture, out _), "7B_AuditAcceptsDeferredClose");
+		Assert(AuditStickyWheelSoundPath(fixture.Replace(close, "CloseUi(\n session,\n reason,\n completeInteraction : false\n );"), out _), "7B_AuditAcceptsMultilineClose");
+		Assert(AuditStickyWheelSoundPath(fixture.Replace(close, "CloseUi(session, reason, false);"), out _), "7B_AuditAcceptsPositionalFalse");
+		string legacy = fixture.Replace(close, "CloseUi(session, reason);").Replace("using var interactionCompletion = session.Interaction;", "");
+		Assert(AuditStickyWheelSoundPath(legacy, out _), "7B_AuditAcceptsLegacyCloseWithoutDeferredSession");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, ""), out _), "7B_AuditRejectsMissingClose");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "// " + close), out _), "7B_AuditRejectsCommentOnlyClose");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "var decoy = \"" + close + " { }\";"), out _), "7B_AuditRejectsStringOnlyClose");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "") + "\nprivate static void Decoy() { " + close + " }", out _), "7B_AuditRejectsCloseInOtherMethod");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "").Replace(play, play + "\n" + close), out _), "7B_AuditRejectsCloseAfterConfirmation");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "").Replace(enqueue, enqueue + "\n" + close), out _), "7B_AuditRejectsCloseAfterEnqueue");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "if (leftButton) { " + close + " }"), out _), "7B_AuditRejectsConditionalClose");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "if (leftButton) " + close), out _), "7B_AuditRejectsUnbracedConditionalClose");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(close, "CloseUi(session, reason, completeInteraction: true);"), out _), "7B_AuditRejectsPrematureTerminalCompletion");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(play, "") + "\nprivate static void Decoy() { " + play + " }", out _), "7B_AuditRejectsConfirmationInOtherMethod");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace(enqueue, ""), out _), "7B_AuditRejectsMissingEnqueue");
+		Assert(!AuditStickyWheelSoundPath(fixture.Replace("SoundEffectManager.ReportHover", "UnusedReportHover") + "\nprivate static void Decoy() { SoundEffectManager.ReportHover(); }", out _), "7B_AuditRejectsHoverInOtherMethod");
+		Assert(!AuditStickyWheelSoundPath("", out _), "7B_AuditRejectsMissingMethods");
 	}
 	#endregion
 
