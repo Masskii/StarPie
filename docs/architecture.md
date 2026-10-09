@@ -45,6 +45,7 @@ Plugin implementation → StarPie.Plugin.Abstractions only
 - `PluginHost` 是主程序与插件系统的唯一接缝。
 - `PluginRuntime` 统一实例、激活、租约、停用与卸载；各路径模块拥有强类型请求和自身策略。
 - 新的插件路径通过新的 `PluginPathModule` 接入，不复制运行时，也不退化成 `Invoke(string, object)`。
+- 统一交互路径（SDK 1.10 候选）：语义会话 → PluginHost → Runtime/事件模块 → 每插件有界队列 → 代际/租约 → 观察贡献；广播不加载插件，旧同步订阅不改契约。API/图与模块归属见 [plugin-system.md §9](plugin-system.md#9-统一交互路径文档入口)。
 
 ## 资源与性能边界
 

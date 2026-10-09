@@ -1,8 +1,8 @@
 # StarPie 插件开发资源
 
-> **适用版本**：StarPie `v1.8.0-beta.2` 及以上
-> **SDK 契约**：`StarPie.Plugin.Abstractions` API `1.6`
-> **最后核对**：2026-09-21
+> **适用范围**：当前主仓库实现；接口起始版本与已发布宿主兼容性需分别核对
+> **SDK 契约**：API `1.10`（当前源码候选）
+> **最后核对**：2026-10-09
 
 本目录集中保存 StarPie 插件开发相关的当前文档、历史资料和示例工程。第一次开发插件时，从本页按顺序阅读即可，不需要直接翻阅主程序宿主源码。
 
@@ -20,7 +20,7 @@
 
 - 创建插件工程；
 - 编写 `plugin.json`；
-- 实现 `IStarPiePlugin` 和 `IActionContribution`；
+- 实现 `IStarPiePlugin`、动作贡献或[交互观察贡献](docs/plugin-development-quickstart.md#9-实现第一个交互贡献)；
 - 动作 ID、参数表单、图标和多语言；
 - 调用宿主服务或自行实现功能；
 - 构建、安装、日志与 `--plugin-selftest`；
@@ -32,9 +32,10 @@
 
 适合已经完成第一个插件、需要查阅具体契约时使用，内容包括：
 
-- 当前 SDK 1.6 接口总览，包括宿主轮盘服务和插件级参数页；
+- 当前 SDK 接口总览，包括轮盘会话和 1.10 交互观察候选；
 - manifest 和兼容性规则；
 - 动作、参数、结果和调度类别；
+- [交互接口、不可变字段、筛选/队列、终结与旧接口边界](docs/plugin-system-api-and-performance.md#5-交互事件-api)；
 - `IPluginContext` 宿主服务；
 - 能力声明和运行时门禁；
 - 插件登记、惰性加载和生命周期；
@@ -43,7 +44,7 @@
 
 ### 第三步：架构深入
 
-[《StarPie 插件系统架构与动作执行路径》](docs/plugin-system-architecture.md)
+[《StarPie 插件系统架构与调用路径》](docs/plugin-system-architecture.md)
 
 适合宿主维护者、代码审查者和需要深入排障的插件作者，内容包括：
 
@@ -68,58 +69,18 @@
 
 ---
 
-## 2. 示例工程
+## 2. 示例工程与当前检出
 
-### `HelloAction`
+当前 checkout 不包含历史 `plugin/samples/HelloAction/` 或 `ScreenBrightness/`，不要直接运行旧路径构建命令。
 
-路径：[samples/HelloAction/](samples/HelloAction/)
+- [动作完整最小例子](docs/plugin-development-quickstart.md#8-实现第一个动作)：按快速入门创建自己的工程，不依赖已移除模板目录。
+- [交互观察完整最小例子](docs/plugin-development-quickstart.md#9-实现第一个交互贡献)：SDK/BCL 实现与清单，不播放音频或操控系统。
+- [记录型交互验证夹具](../scratch/interaction-event-tests/Fixture/)：用于无副作用回归，不作为发行插件静默携带。
+- [当前悬浮球源码](StarPie-Official-Plugins/src/StarPie.Plugin.FloatingBall/)：位于官方插件子模块；不是旧 samples 目录，也不是运行时自动安装来源。
 
-社区插件参考模板，演示：
-
-- 插件入口与多个动作注册；
-- Text、Bool、Enum、Folder、MultilineText、Number、File、Hotkey、Color 参数；
-- SVG 图标和多语言词条；
-- 宿主服务调用；
-- 事件订阅 token 与幂等 `Shutdown()`；
-- `plugin.json`、Schema 和程序集元数据兜底。
-
-构建：
-
-```powershell
-dotnet build plugin/samples/HelloAction/HelloAction.csproj -c Release
-```
-
-### `FloatingBall`
-
-路径：[samples/FloatingBall/](samples/FloatingBall/)
-
-常驻形态示例，演示插件自己绘制 WPF 悬浮球，并通过 `IHostWheelService` 呼出用户配置的宿主轮盘。
-
-构建：
-
-```powershell
-dotnet build plugin/samples/FloatingBall/FloatingBall.csproj -c Release
-```
-### `ScreenBrightness`
-
-路径：[samples/ScreenBrightness/](samples/ScreenBrightness/)
-
-进阶和压力测试示例，演示：
-
-- P/Invoke 调用 DDC/CI；
-- COM/WMI 互操作；
-- 硬件不可用时的降级；
-- `ActionKind.Background`；
-- 耗时 IO、取消和参数校验。
-
-构建：
-
-```powershell
-dotnet build plugin/samples/ScreenBrightness/ScreenBrightness.csproj -c Release
-```
+历史 HelloAction/ScreenBrightness 的说明只作早期资料，硬件/真实动作演示不得作为默认自动测试。当前完整自检要求的 KeypadLayer 夹具及 --skip-invoke 命令见[快速入门第 24.4 节](docs/plugin-system-api-and-performance.md#111-自检命令)。
 
 ---
-
 ## 3. SDK 源码入口
 
 插件唯一允许引用的 StarPie 程序集位于：
@@ -135,6 +96,7 @@ plugin/sdk/StarPie.Plugin.Abstractions/
 | `IStarPiePlugin.cs` | 插件入口和生命周期 |
 | `IPluginContext.cs` | 插件可使用的注册表和宿主服务 |
 | `Actions.cs` | 动作描述、参数、输入和结果 |
+| `Interactions.cs` | SDK 1.10 可选交互上下文、观察贡献与不可变事件 |
 | `Registries.cs` | 动作、图标和词条注册接口 |
 | `Services.cs` | 启动、命令、窗口、截屏、系统、事件等宿主服务 |
 | `PluginManifest.cs` | `plugin.json` 清单模型 |
@@ -237,3 +199,10 @@ StarPie.exe --plugin-selftest <插件.dll> --skip-invoke
 - 历史方案移入 `docs/archive/`，不要继续与当前文档并列展示；
 - 主仓库 README 只链接本页，不重复维护具体文档列表。
 
+
+## 交互路径速查
+
+- 插件作者：[完整 API](docs/plugin-system-api-and-performance.md#5-交互事件-api) → [最小无副作用例子](docs/plugin-development-quickstart.md#9-实现第一个交互贡献)。
+- 宿主维护者：[职责/调用树](docs/plugin-system-architecture.md#13-交互事件路径的完整调用过程) → [注册、Render、队列、撤回与停用图](docs/plugin-system-architecture-map.md#10-交互事件调用主路径)。
+- SDK 事实来源：[Interactions.cs](sdk/StarPie.Plugin.Abstractions/Interactions.cs)；验证器：[记录型行为测试](../scratch/interaction-event-tests/)。
+- 广播不加载未激活插件；新路径可用不等于音效迁移已完成；旧事件接口和程序集身份不变。候选不是发布承诺，真实窗口、DPI、多屏与手感仍须实机验收。

@@ -1,9 +1,9 @@
 # StarPie 插件开发快速入门
 
-> **适用版本**：StarPie `v1.8.0-beta.2` 及以上
-> **SDK 契约**：`StarPie.Plugin.Abstractions` API `1.6`
-> **最后核对**：2026-09-21
-> **目标**：从零创建一个可安装、可配置、可执行、可自检的社区动作插件。
+> **适用范围**：当前主仓库实现；发布宿主的实际 SDK 支持应按发布记录确认
+> **SDK 契约**：API `1.10`（当前源码候选，示例按所用接口声明最低版本）
+> **最后核对**：2026-10-09
+> **目标**：创建社区动作插件或交互观察插件；动作与交互入门依次见第 8、9 节；工程准备从第 3 节开始，交互观察见[第 9 节](#9-实现第一个交互贡献)。
 >
 > 本文只描述仓库当前已经实现并开放的能力。接口事实以
 > `plugin/sdk/StarPie.Plugin.Abstractions/` 中的公共类型和 XML 注释为准；宿主运行机制见
@@ -47,6 +47,8 @@ StarPie 使用 .NET 8 进程内 DLL 插件。一个插件通常包含：
 宿主根据 `PluginId` 惰性加载插件，再根据完整动作 ID 找到对应的
 `IActionContribution` 实例并调用 `ExecuteAsync()`。
 
+交互观察不是给扇区再绑定一个动作：它通过 SDK 1.10 的可选上下文登记事件贡献，已经加载后由宿主主动调用。纯观察插件没有动作下拉条目是正常情况，广播不会为未加载插件做惰性加载。见[第 9 节](#9-实现第一个交互贡献)。
+
 ---
 
 ## 2. 开发环境
@@ -74,33 +76,15 @@ dotnet build plugin/samples/HelloAction/HelloAction.csproj -c Release
 
 ---
 
-## 3. 最快方式：复制 `HelloAction`
+## 3. 最快方式：使用本文完整示例
 
-仓库已经提供两个示例：
+当前检出不再提供历史 `plugin/samples/HelloAction/` 和 `ScreenBrightness/`。第一次开发动作插件按下文第 4–8 节创建工程；开发交互观察插件直接使用[第 9 节](#9-实现第一个交互贡献)。
 
-| 示例 | 用途 |
-|---|---|
-| `plugin/samples/HelloAction/` | 入门模板：动作、参数、图标、i18n、宿主服务、事件订阅 |
-| `plugin/samples/ScreenBrightness/` | 进阶示例：P/Invoke、COM、硬件访问、后台任务和降级处理 |
+如果从自己的既有模板复制，至少调整工程/程序集名称、命名空间、清单 id/版本/入口、程序集元数据和贡献 ID。不能引用主程序，也不能把第二份 SDK DLL 随包输出。
 
-第一次开发建议复制：
-
-```text
-plugin/samples/HelloAction/
-```
-
-然后至少修改：
-
-1. 项目文件名和 `AssemblyName`；
-2. 命名空间；
-3. `plugin.json` 中的 `id`、名称、作者和入口类型；
-4. `.csproj` 中的程序集元数据；
-5. 动作类和 `ActionDescriptor.Id`。
-
-下文给出一个更小的完整示例，方便理解每个文件的作用。
+可参考的当前代码包括[交互记录夹具](../../scratch/interaction-event-tests/Fixture/)及[官方悬浮球](../StarPie-Official-Plugins/src/StarPie.Plugin.FloatingBall/)，但回归夹具与官方源码不能当作用户无需确认即可安装的发行资产。
 
 ---
-
 ## 4. 创建项目结构
 
 例如创建：
@@ -381,7 +365,109 @@ com.example.myhello.hello
 
 ---
 
-## 9. 一个插件注册多个动作
+## 9. 实现第一个交互贡献
+
+交互贡献和第 8 节的动作贡献一样，由插件创建实现对象，在 `Initialize` 通过上下文注册。不同之处是：宿主按事件筛选调用，不需要用户给扇区绑定动作，也不返回 ActionResult。
+
+本例只累计内存计数，不播放声音、不操控窗口、不发送输入。工程引用规则沿用第 5 节；使用此接口时清单声明 `apiVersion: "1.10"`。最低宿主版本按实际发布支持填写，不把候选源码等同于已发布版本。
+
+### 插件入口
+
+`WheelObserverPlugin.cs`：
+
+<!-- doc-example: interaction-entry -->
+```csharp
+using System;
+using StarPie.Plugin;
+
+namespace DemoWheelObserver;
+
+public sealed class WheelObserverPlugin : IStarPiePlugin
+{
+    private IDisposable? _subscription;
+
+    public void Initialize(IPluginContext context)
+    {
+        if (context is not IInteractionPluginContext interactionContext)
+            throw new NotSupportedException("This observer requires SDK 1.10.");
+
+        _subscription = interactionContext.Interactions.Register(
+            new WheelObserverContribution());
+    }
+
+    public void Shutdown()
+    {
+        _subscription?.Dispose();
+        _subscription = null;
+    }
+}
+```
+
+### 交互实现
+
+`WheelObserverContribution.cs`：
+
+<!-- doc-example: interaction-contribution -->
+```csharp
+using System.Threading;
+using System.Threading.Tasks;
+using StarPie.Plugin;
+
+namespace DemoWheelObserver;
+
+internal sealed class WheelObserverContribution : IInteractionContribution
+{
+    private long _presentedCount;
+    private long _selectionCount;
+    private long _endedCount;
+
+    public long PresentedCount => Interlocked.Read(ref _presentedCount);
+    public long SelectionCount => Interlocked.Read(ref _selectionCount);
+    public long EndedCount => Interlocked.Read(ref _endedCount);
+
+    public InteractionDescriptor Descriptor => new()
+    {
+        Id = "observeWheel",
+        Events = InteractionEventKind.Presented |
+                 InteractionEventKind.SelectionChanged |
+                 InteractionEventKind.SessionEnded,
+    };
+
+    public ValueTask OnInteractionAsync(InteractionEvent input, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        switch (input.Kind)
+        {
+            case InteractionEventKind.Presented:
+                Interlocked.Increment(ref _presentedCount);
+                break;
+            case InteractionEventKind.SelectionChanged:
+                Interlocked.Increment(ref _selectionCount);
+                break;
+            case InteractionEventKind.SessionEnded:
+                Interlocked.Increment(ref _endedCount);
+                break;
+        }
+        return ValueTask.CompletedTask;
+    }
+}
+```
+
+### 注册与调用
+
+- `Id` 是插件内短 ID；`Events` 可以按位组合，不能为 None 或包含未知位。
+- 初始化成功提交后才可见；失败丢弃，token 或停用撤销。
+- 回调后台按插件串行调度，不保证固定线程或 UI 线程；异步工作应 await 真实任务，不能 fire-and-forget。
+- 必须先由用户启用/预加载完成加载。广播不加载 DLL，也不回放激活前的交互；纯观察插件没有动作条目是正常情况。
+- 用 `Source`、`SessionId` 和 `Sequence` 分析只读快照；Sequence 可有间隙，快速松手或呈现前失败可以没有 Presented，End 也不保证每订阅者必达。
+- 需要 UI 时走 `context.Dispatcher`；其他系统后果仍遵守对应能力门禁，不引用主程序内部类型。
+
+完整参数与约束见[交互 API](plugin-system-api-and-performance.md#5-交互事件-api)，调用图见[交互事件调用主路径](plugin-system-architecture-map.md#10-交互事件调用主路径)。构建、安装、日志与停止规则沿用后文公共流程。
+
+交互回归使用[`scratch/interaction-event-tests/`](../../scratch/interaction-event-tests/)的纯记录夹具。完整 PluginSelfTest 的 [3g] 要求 keypadLayer/keyMap 动作，不能拿本例这种纯观察 DLL 代替；正确夹具命令见[API 自检章节](plugin-system-api-and-performance.md#111-自检命令)。无 GUI 绿色结果不替代真实视觉、DPI、多屏和手感验收。
+
+---
+## 10. 一个插件注册多个动作
 
 在 `Initialize()` 中多次调用：
 
@@ -414,7 +500,7 @@ com.example.myhello.translate
 
 ---
 
-## 10. 参数表单
+## 11. 参数表单
 
 插件只声明字段，不提供 XAML。宿主支持：
 
@@ -462,7 +548,7 @@ bool enabled = input.Bool("enabled", false);
 
 ---
 
-## 11. 使用多语言词条和图标
+## 12. 使用多语言词条和图标
 
 注册词条：
 
@@ -512,7 +598,7 @@ string iconKey = context.Icons.RegisterSvg(
 
 ---
 
-## 12. 调用宿主能力，或完全自己实现
+## 13. 调用宿主能力，或完全自己实现
 
 插件可以完全使用自己的 .NET、P/Invoke、COM 或网络实现，也可以调用宿主服务。
 
@@ -554,7 +640,7 @@ Process.Start(new ProcessStartInfo
 
 ---
 
-## 13. 选择 `Sequential` 还是 `Background`
+## 14. 选择 `Sequential` 还是 `Background`
 
 ### `Sequential`
 
@@ -584,7 +670,7 @@ Process.Start(new ProcessStartInfo
 
 ---
 
-## 14. 构建和检查产物
+## 15. 构建和检查产物
 
 构建：
 
@@ -621,7 +707,7 @@ StarPie.Plugin.Abstractions.dll
 
 ---
 
-## 15. 运行无界面自检
+## 16. 运行无界面自检
 
 推荐在安装前执行：
 
@@ -662,7 +748,7 @@ StarPie.Plugin.Abstractions.dll
 
 ---
 
-## 16. 在 StarPie 中安装
+## 17. 在 StarPie 中安装
 
 ### 方法一：手动选择 DLL
 
@@ -708,7 +794,7 @@ plugin-data\<id>\data\     # 插件私有数据
 
 ---
 
-## 17. 日志和调试
+## 18. 日志和调试
 
 宿主日志：
 
@@ -740,7 +826,7 @@ return ActionResult.Fail("用户可以直接理解并处理的失败原因");
 
 ---
 
-## 18. 生命周期和卸载纪律
+## 19. 生命周期和卸载纪律
 
 为了让插件能够停用、更新和卸载：
 
@@ -757,7 +843,7 @@ return ActionResult.Fail("用户可以直接理解并处理的失败原因");
 
 ---
 
-## 19. 社区插件与官方插件的区别
+## 20. 社区插件与官方插件的区别
 
 社区插件：
 
@@ -780,7 +866,7 @@ return ActionResult.Fail("用户可以直接理解并处理的失败原因");
 
 ---
 
-## 20. 打包和发布
+## 21. 打包和发布
 
 社区插件推荐发布一个 ZIP，内容是构建输出目录中运行所需的完整文件，例如：
 
@@ -808,7 +894,7 @@ MyHello-1.0.0.zip
 
 ---
 
-## 21. 常见错误
+## 22. 常见错误
 
 ### “插件 ID 使用了保留前缀”
 
@@ -853,16 +939,16 @@ MyHello-1.0.0.zip
 
 ---
 
-## 22. 推荐阅读顺序
+## 23. 推荐阅读顺序
 
 1. 本文；
-2. `plugin/samples/HelloAction/`；
+2. [本文第 8 节的完整动作例子](#8-实现第一个动作)；
 3. [`IStarPiePlugin.cs`](../sdk/StarPie.Plugin.Abstractions/IStarPiePlugin.cs)；
 4. [`IPluginContext.cs`](../sdk/StarPie.Plugin.Abstractions/IPluginContext.cs)；
 5. [`Actions.cs`](../sdk/StarPie.Plugin.Abstractions/Actions.cs)；
-6. [`Services.cs`](../sdk/StarPie.Plugin.Abstractions/Services.cs)；
+6. [`Services.cs`](../sdk/StarPie.Plugin.Abstractions/Services.cs) 与 [`Interactions.cs`](../sdk/StarPie.Plugin.Abstractions/Interactions.cs)；
 7. [`plugin-system-architecture.md`](plugin-system-architecture.md)；
-8. `plugin/samples/ScreenBrightness/`。
+8. [第 9 节交互观察例子](#9-实现第一个交互贡献)及[无副作用记录夹具](../../scratch/interaction-event-tests/Fixture/)。
 
 历史设计和性能材料：
 
@@ -876,7 +962,7 @@ plugin-system-api-and-performance.md
 
 ---
 
-## 23. 发布前检查表
+## 24. 发布前检查表
 
 - [ ] 使用唯一的反向域名插件 ID；
 - [ ] 未使用官方保留前缀；
@@ -899,3 +985,4 @@ plugin-system-api-and-performance.md
 - [ ] 实际安装、启用、配置和触发测试通过；
 - [ ] 插件日志没有未处理异常；
 - [ ] 附带 README 和许可证。
+---

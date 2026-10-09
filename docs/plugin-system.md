@@ -118,3 +118,14 @@
 6. SDK、能力、停用、配置迁移或安装流程改动需要独立审查与用户实机验收。
 
 新增自检断言必须证明会红：使用安全变异、基线失败或可复现反例。仅检查源文件是否包含某个字符串不能证明功能正确。
+
+## 9. 统一交互路径文档入口
+
+SDK 1.10 当前源码候选的文档已分为四层：
+
+- [API 第 5 节](../plugin/docs/plugin-system-api-and-performance.md#5-交互事件-api)：签名、字段/枚举、激活前提、注册异常、线程/背压与取消。
+- [快速入门第 9 节](../plugin/docs/plugin-development-quickstart.md#9-实现第一个交互贡献)：SDK/BCL 观察插件、清单、启用/预加载与无副作用验证。
+- [架构第 13 节](../plugin/docs/plugin-system-architecture.md#13-交互事件路径的完整调用过程)：模块归属、实际生产时点、锁内冻结/锁外发布及兼容边界。
+- [架构图第 10 节](../plugin/docs/plugin-system-architecture-map.md#10-交互事件调用主路径)：注册/回滚、Render、队列、撤回竞态和停止排空五条图。
+
+发布边界与人工门禁不能被文档或无 GUI 绿色结果替代；音效插件迁移仍是后续独立阶段。
