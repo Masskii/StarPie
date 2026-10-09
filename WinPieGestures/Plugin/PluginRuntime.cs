@@ -171,6 +171,7 @@ internal sealed class PluginActivationCoordinator
     }
 
     public PluginInstance? FindInstance(string pluginId) => _findInstance(pluginId);
+    public bool IsPluginSystemEnabled => _isPluginSystemEnabled();
 
     public PluginActivationResult EnsureLoaded(
         string pluginId,
@@ -321,6 +322,10 @@ internal sealed class PluginCallCoordinator
         out string error) =>
         instance.TryAcquireInvocation(kind, out lease, out error);
 
+    public bool TryAcquireInvocation(PluginInstance instance, long generation, PluginCallKind kind,
+        out PluginInvocationLease? lease, out string error) =>
+        instance.TryAcquireInvocation(generation, kind, out lease, out error);
+
     public T Invoke<T>(
         string pathId,
         string operation,
@@ -389,11 +394,12 @@ internal sealed class PluginRuntime
     public PluginRuntime(
         PluginCatalog catalog,
         Func<string, PluginInstance?> findInstance,
-        Func<bool> isPluginSystemEnabled)
+        Func<bool> isPluginSystemEnabled, int interactionQueueCapacity = 128,
+        Func<string, PluginInstance?>? findInteractionInstance = null)
     {
         _activation = new PluginActivationCoordinator(findInstance, isPluginSystemEnabled);
         Actions = new ActionExecutionPathModule(catalog, _activation, _calls);
-        Interactions = new InteractionEventPathModule(_activation, _calls);
+        Interactions = new InteractionEventPathModule(catalog, _activation, _calls, interactionQueueCapacity, findInteractionInstance ?? findInstance);
         WheelStructures = new WheelStructurePathModule();
 
         _paths.Register(Actions);
@@ -472,8 +478,8 @@ internal sealed class PluginRuntime
             "广播 wheel.closed 兼容事件",
             Interactions.RaiseWheelClosed);
 
-    /// <summary>统一交互事件路径入口。当前仅建立强类型接缝，正式队列分发将在后续实现。</summary>
-    public int PublishInteractionEvent(PluginInteractionEventEnvelope interactionEvent) =>
+    /// <summary>统一交互事件路径入口。只向已加载实例的已提交贡献入队，回调在后台串行调度。</summary>
+    public int PublishInteractionEvent(InteractionEvent interactionEvent) =>
         _calls.Invoke(
             PluginPathIds.InteractionEvent,
             "发布统一交互事件",

@@ -622,11 +622,15 @@ public partial class RadialWindow : Window
 	/// 复用同一个透明 Window/HWND 呈现新手势。配置修订、方案引用或活动层变化时才重建视觉树；
 	/// 其余呼出只重置交互状态、更新物理中心/DPI 并重新播放入场动画。
 	/// </summary>
-	public void Present(Point centerPoint, WheelProfile profile, long configurationRevision, long presentationVersion)
+	public void Present(Point centerPoint, WheelProfile profile, long configurationRevision, long presentationVersion) =>
+		Present(centerPoint, profile, configurationRevision, presentationVersion, null);
+
+	internal void Present(Point centerPoint, WheelProfile profile, long configurationRevision,
+		long presentationVersion, Action? onPresented)
 	{
 		if (!Dispatcher.CheckAccess())
 		{
-			Dispatcher.Invoke(() => Present(centerPoint, profile, configurationRevision, presentationVersion));
+			Dispatcher.Invoke(() => Present(centerPoint, profile, configurationRevision, presentationVersion, onPresented));
 			return;
 		}
 		if (_isDisposed)
@@ -673,14 +677,17 @@ public partial class RadialWindow : Window
 		// 紧接在下一 Render 回调即刻校准物理中心、揭示内容并平滑播放入场动效。
 		Dispatcher.BeginInvoke(new Action(() =>
 		{
-			if (_isDisposed || !_isPresented || PresentationVersion != presentationVersion)
+			if (WheelPresentationCompletion.TryComplete(
+				() => WheelPresentationCompletion.IsCurrent(_isDisposed, _isPresented, PresentationVersion, presentationVersion),
+				() =>
+				{
+					CenterOnPhysically(_centerPoint.X, _centerPoint.Y);
+					EnsureTopmostNoActivate();
+					MainGrid.Visibility = Visibility.Visible;
+				}, onPresented))
 			{
-				return;
+				StartIntroAnimation(presentationVersion);
 			}
-			CenterOnPhysically(_centerPoint.X, _centerPoint.Y);
-			EnsureTopmostNoActivate();
-			MainGrid.Visibility = Visibility.Visible;
-			StartIntroAnimation(presentationVersion);
 		}), DispatcherPriority.Render);
 	}
 
@@ -3677,4 +3684,20 @@ public partial class RadialWindow : Window
 		_subTierCache[parentIndex] = SnapshotSubTierVisuals(snapshotStart);
 	}
 
+}
+
+/// <summary>真实 Render 路径的纯调度接缝：旧/关闭帧不揭示，只有内容揭示成功且版本仍有效才通知。</summary>
+internal static class WheelPresentationCompletion
+{
+    internal static bool IsCurrent(bool disposed, bool presented, long current, long requested) =>
+        !disposed && presented && current == requested;
+
+    internal static bool TryComplete(Func<bool> isCurrent, Action revealContent, Action? onPresented)
+    {
+        if (!isCurrent()) return false;
+        revealContent();
+        if (!isCurrent()) return false;
+        onPresented?.Invoke();
+        return true;
+    }
 }

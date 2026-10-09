@@ -182,6 +182,7 @@ internal static class StickyWheelSession
                 if (ReferenceEquals(_current, session)) _current = null;
             }
             session.PostState(WheelSessionState.Rejected, ex.Message);
+            session.Interaction.End("PresentationFailed");
             AppLogger.LogWarn($"[plugin] 粘滞轮盘排队失败：{ex.Message}");
             return null;
         }
@@ -193,19 +194,29 @@ internal static class StickyWheelSession
     /// </summary>
     internal static bool Dismiss(string pluginId)
     {
-        Session? session;
+        Session? session = ReserveDismissal(pluginId);
+        if (session == null) return false;
+        FinishDismissal(session);
+        return true;
+    }
+
+    // 原子拆下当前会话并冻结结束原因；完成发布与 UI 清理可以在锁外延后。
+    internal static Session? ReserveDismissal(string pluginId)
+    {
         lock (Gate)
         {
-            session = _current;
-            if (session == null || !string.Equals(session.PluginId, pluginId, StringComparison.Ordinal))
-            {
-                return false;
-            }
+            Session? session = _current;
+            if (session == null || !string.Equals(session.PluginId, pluginId, StringComparison.Ordinal)) return null;
+            session.Interaction.FreezeEnd("DismissedByPlugin");
             _current = null;
+            return session;
         }
+    }
 
+    private static void FinishDismissal(Session session)
+    {
+        session.Interaction.End("DismissedByPlugin");
         session.PostState(WheelSessionState.Closed, "DismissedByPlugin");
-
         try
         {
             Application.Current?.Dispatcher.BeginInvoke(new Action(() => CloseUi(session, "DismissedByPlugin")));
@@ -214,9 +225,7 @@ internal static class StickyWheelSession
         {
             AppLogger.LogWarn($"[plugin] 粘滞轮盘收摊排队失败：{ex.Message}");
         }
-        return true;
     }
-
     /// <summary>
     /// 插件停用时兜底断开会话回调，避免闭包泄漏阻止 ALC 卸载。
     /// 撤销该插件/代际的所有会话（包括当前会话、旧会话、尚未呈现及已排队会话）。
@@ -273,6 +282,7 @@ internal static class StickyWheelSession
         if (!isCurrent)
         {
             session.PostState(WheelSessionState.Superseded, "Superseded before presentation");
+            session.Interaction.End("SupersededBeforePresentation");
             return;
         }
 
@@ -288,6 +298,7 @@ internal static class StickyWheelSession
             profile.ActiveLayerIndex = 0;
             profile.SyncRootPropertiesFromActiveLayer();
             session.Profile = profile;
+            session.Interaction.BindProfile(profile.ProcessName);
 
             // 与 ShowRadialUI 相同的顺序：遮罩先上屏，轮盘在其后进入最上层带，
             // 视觉上轮盘压住遮罩；轮盘 HWND 显式穿透鼠标，命中由遮罩收。
@@ -297,7 +308,7 @@ internal static class StickyWheelSession
 
             RadialWindow wheel = _cachedWheel ??= new RadialWindow(session.Center, profile);
             session.Wheel = wheel;
-            wheel.Present(session.Center, profile, ConfigManager.ConfigurationRevision, session.Version);
+            wheel.Present(session.Center, profile, ConfigManager.ConfigurationRevision, session.Version, session.Interaction.Presented);
             // Present 可能把靠边的轮盘钳进工作区；命中必须以真正画出来的中心为准。
             session.HitCenter = wheel.ActualPhysicalCenter;
             (session.DpiX, session.DpiY) = RadialWindow.GetMonitorDpiScale(session.HitCenter);
@@ -324,6 +335,7 @@ internal static class StickyWheelSession
                 if (ReferenceEquals(_current, session)) _current = null;
             }
             session.PostState(WheelSessionState.Rejected, ex.Message);
+            session.Interaction.End("PresentationFailed");
             CloseUi(session, "PresentationFailed");
         }
     }
@@ -351,6 +363,8 @@ internal static class StickyWheelSession
         session.LastSub = hit.Sub;
         session.LastShowSub = hit.ShowSub;
         session.LastEscaped = hit.Escaped;
+
+        session.Interaction?.Update(hit.Sector, hit.Sub, hit.ShowSub, hit.Escaped);
 
         // 音效与 QueueHighlightUpdate 同一组转移规则，反馈语汇保持一致。
         if (!prevEscaped && hit.Escaped)
@@ -470,10 +484,12 @@ internal static class StickyWheelSession
             if (ReferenceEquals(_current, session)) _current = null;
         }
         string reason = (!leftButton || hit.Escaped) ? "Cancelled" : "ActionExecuted";
-        CloseUi(session, reason);
+        CloseUi(session, reason, completeInteraction: false);
+        using var interactionCompletion = session.Interaction;
 
         if (!leftButton || hit.Escaped)
         {
+            session.Interaction?.Cancel(hit.Escaped ? "Escaped" : "Cancelled");
             if (hit.Escaped)
             {
                 DispatchCancelAction();
@@ -488,9 +504,11 @@ internal static class StickyWheelSession
                 : session.Profile?.GetEffectiveAction(hit.Sector, hit.Sub);
             if (target != null)
             {
+                session.Interaction?.Confirm(target, PluginInteractionSession.Target(hit.Sector, hit.Sub));
                 SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.StickyWheel, session.SoundSessionId);
                 ActionExecutor.EnqueueAction(target);
             }
+            else session.Interaction?.Cancel("NoAction");
         }
         catch (Exception ex)
         {
@@ -498,8 +516,9 @@ internal static class StickyWheelSession
         }
     }
 
-    private static void CloseUi(Session session, string reason = "Closed")
+    private static void CloseUi(Session session, string reason = "Closed", bool completeInteraction = true)
     {
+        if (completeInteraction) session.Interaction?.End(reason);
         if (session.Live)
         {
             session.Live = false;
@@ -762,6 +781,7 @@ internal static class StickyWheelSession
             Version = version;
             Replaces = replaces;
             SessionId = $"wheel-sess-{version}-{Guid.NewGuid():N}";
+            Interaction = new PluginInteractionSession(InteractionSource.StickyWheel, "");
             _onStateChanged = onStateChanged;
             _onSelectionChanged = onSelectionChanged;
 
@@ -789,6 +809,7 @@ internal static class StickyWheelSession
         public double DpiY { get; set; } = 1.0;
         public bool Live { get; set; }
         public long SoundSessionId { get; set; }
+        internal PluginInteractionSession Interaction { get; }
         public bool BackdropBound { get; set; }
 
         public bool HighlightScheduled { get; set; }

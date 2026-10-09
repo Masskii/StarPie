@@ -1,9 +1,9 @@
 # StarPie 插件系统：当前 API 与性能参考
 
 > **文档状态**：当前实现参考（Current Reference）
-> **适用版本**：StarPie `v1.8.0-beta.2` 及以上
-> **SDK 契约**：`StarPie.Plugin.Abstractions` API `1.6`
-> **最后核对**：2026-09-20
+> **适用范围**：当前主仓库实现；各接口起始 SDK 版本见对应章节，不代表所有已发布宿主都包含候选接口
+> **SDK 契约**：`StarPie.Plugin.Abstractions` API `1.10`（当前源码候选）
+> **最后核对**：2026-10-09
 > **首选入门文档**：[插件开发快速入门](plugin-development-quickstart.md)
 >
 > 本文描述当前已经实现并开放的插件 API、安装模型、运行时约束和性能纪律。插件作者应先阅读快速入门；本文用于查阅接口边界、兼容性和性能要求。当前接口的最终事实来源是 `plugin/sdk/StarPie.Plugin.Abstractions/` 中的公共类型和 XML 注释。
@@ -18,15 +18,15 @@
 2. [公共 API 总览](#2-公共-api-总览)
 3. [插件清单与兼容性](#3-插件清单与兼容性)
 4. [动作 API](#4-动作-api)
-5. [宿主服务 API](#5-宿主服务-api)
-6. [安装、登记与加载模型](#6-安装登记与加载模型)
-7. [生命周期与卸载纪律](#7-生命周期与卸载纪律)
-8. [性能和线程约束](#8-性能和线程约束)
-9. [能力声明与安全边界](#9-能力声明与安全边界)
-10. [调试、自检与常见故障](#10-调试自检与常见故障)
-11. [当前不开放的能力](#11-当前不开放的能力)
-12. [参考基准的口径](#12-参考基准的口径)
-
+5. [交互事件 API](#5-交互事件-api)
+6. [宿主服务 API](#6-宿主服务-api)
+7. [安装、登记与加载模型](#7-安装登记与加载模型)
+8. [生命周期与卸载纪律](#8-生命周期与卸载纪律)
+9. [性能和线程约束](#9-性能和线程约束)
+10. [能力声明与安全边界](#10-能力声明与安全边界)
+11. [调试、自检与常见故障](#11-调试自检与常见故障)
+12. [当前不开放的能力](#12-当前不开放的能力)
+13. [参考基准的口径](#13-参考基准的口径)
 ---
 
 # 1. 当前架构边界
@@ -66,9 +66,10 @@ StarPie.Plugin.Abstractions.dll
 
 - 动作贡献：`IActionContribution`；
 - SVG 图标：`IIconRegistry.RegisterSvg`；
-- 多语言词条：`II18nRegistry`。
+- 多语言词条：`II18nRegistry`；
+- 交互观察贡献：`IInteractionContribution`，通过可选派生上下文注册，不出现在动作下拉中。
 
-`IPluginContext` 中的交互事件服务可以用于当前已提供的事件订阅；轮盘结构和其它扩展路径仍属于宿主内部扩展接缝，不能把规划中的接口当作当前稳定公共 API 使用。
+旧 `IPluginContext.Events` 保持已发布的事件订阅契约；SDK 1.10 候选通过 `IInteractionPluginContext.Interactions` 注册统一只读贡献，在宿主后台有界队列中串行回调。签名、字段、筛选、调度与停用规则见[第 5 节](#5-交互事件-api)。候选源码能力不等于已发布宿主可用；轮盘结构路径仍是内部接缝。
 
 ## 1.3 当前权威文档层级
 
@@ -158,7 +159,19 @@ IDisposable token = context.Actions.Register(contribution);
 
 返回的 `IDisposable` 是撤销凭据。插件应在 `Shutdown` 中释放自己保存的 token，宿主也会在停用时兜底撤销该插件的全部贡献。
 
-## 2.4 运行时动作 ID
+## 2.4 交互注册表：`IInteractionRegistry`
+
+插件通过可选的 `IInteractionPluginContext.Interactions` 取得注册表：
+
+```csharp
+public interface IInteractionRegistry
+{
+    IDisposable Register(IInteractionContribution contribution);
+}
+```
+
+与动作注册表一样，只在 Initialize 事务内登记并返回撤销凭据。交互贡献按事件筛选，不绑定动作槽位；具体接口和线程/生命周期约束见[第 5 节](#5-交互事件-api)。
+## 2.5 运行时动作 ID
 
 每个插件有一个插件级 ID，每个动作有一个插件内短 ID：
 
@@ -371,9 +384,196 @@ return ActionResult.Fail("输入文件不存在，请检查路径。");
 
 ---
 
-# 5. 宿主服务 API
+# 5. 交互事件 API
 
-## 5.1 `IHostActionInvoker`：通用动作原语
+## 5.1 `IInteractionContribution`
+
+SDK 1.10 的 `interaction-event` 路径已经在当前源码实现。本文描述候选契约，不宣称某个已发布安装包已经包含它；发布插件时须声明 `apiVersion: "1.10"`，并按实际发布记录填写最低宿主版本，不能凭本页版本号猜测兼容性。
+
+插件在 `Initialize` 注册观察贡献，宿主按事件筛选主动调用。与第 4 节的定向动作不同，事件没有执行结果，也不回写当前选择、导航或轮盘结构。
+
+```csharp
+public interface IInteractionContribution
+{
+    InteractionDescriptor Descriptor { get; }
+    ValueTask OnInteractionAsync(
+        InteractionEvent input,
+        CancellationToken cancellationToken);
+}
+```
+
+### `Descriptor`
+
+声明贡献短 ID 和关注的事件。宿主在登记时校验并快照，不在广播时重新读取插件属性。
+
+### `OnInteractionAsync`
+
+处理宿主已产生的交互快照。必须响应取消，返回代表真实工作的完整 ValueTask；没有 ActionResult，不得返回选择或导航决定。宿主后台按插件串行调用，耗时工作应 await，不额外创建轮询线程或 fire-and-forget 任务。
+
+
+**激活前提**：先由用户启用、立即预加载或既有启动预加载流程完成加载与 `Initialize`。启动预加载仍受总开关、安全模式、插件 Enabled/Preload 偏好控制，且有延迟；它不是“启动后首个交互必达”的承诺。已登记但尚未加载的 DLL 没有订阅，广播不会为补发事件加载它。晚加载不回放已经结束的会话。
+
+## 5.2 `IInteractionPluginContext` 与 `IInteractionRegistry`
+
+命名空间均为 `StarPie.Plugin`：
+
+```csharp
+public interface IInteractionPluginContext : IPluginContext
+{
+    IInteractionRegistry Interactions { get; }
+}
+
+public interface IInteractionRegistry
+{
+    IDisposable Register(IInteractionContribution contribution);
+}
+
+
+public sealed class InteractionDescriptor
+{
+    public string Id { get; init; } = "";
+    public InteractionEventKind Events { get; init; } = InteractionEventKind.All;
+}
+```
+
+`IInteractionPluginContext` 是新增的可选派生接口，不是在旧 `IPluginContext` 上增加必实现成员。插件用类型检查取得它；旧上下文/旧事件接口及程序集身份保持不变。
+
+注册规则：
+
+- 仅在 `Initialize` 事务尚未关闭时登记；描述符在登记时读取、校验和快照，不在发布热路径回查插件属性。
+- `Id` 先 Trim，再满足 `^[A-Za-z][A-Za-z0-9_]{0,63}$`；同插件交互贡献 ID 大小写不敏感、不得重复。宿主使用 `插件ID.短ID` 标识交互贡献。
+- `Events` 可以按位组合，但不能为 `None` 或包含未知位。默认 `All` 是当前已定义位集合，不代表自动订阅所有未来类型。
+- 初始化成功并原子 Commit 后才可见；失败/冲突整体拒绝，Discard 关闭登记并清理暂存引用。
+- 返回的 `IDisposable` 是撤销凭据；重复释放安全，停用时宿主兜底撤销。撤销阻止后续回调，但不强制终止已取得租约的回调。
+- null contribution 抛 `ArgumentNullException`；关闭事务、null 描述符、非法 ID/筛选及重复 ID 抛 `PluginContractException`。插件自己的 Descriptor getter 异常会使初始化失败，不应假定所有异常都被改写成同一种契约异常。
+
+这是交互注册表，不是动作注册表；纯观察插件没有动作条目是正常情况。完整最小例子见[快速入门第 9 节](plugin-development-quickstart.md#9-实现第一个交互贡献)。
+
+## 5.3 `InteractionEventKind`
+
+```csharp
+[Flags]
+public enum InteractionEventKind
+{
+    None = 0,
+    Presented = 1,
+    SelectionChanged = 2,
+    SubmenuExpanded = 4,
+    NavigationCancelled = 8,
+    ActionCommitted = 16,
+    SessionCancelled = 32,
+    SessionEnded = 64,
+    All = Presented | SelectionChanged | SubmenuExpanded |
+          NavigationCancelled | ActionCommitted | SessionCancelled | SessionEnded,
+}
+```
+
+描述符用复合位进行筛选；**单条事件的 `Kind` 始终只有一个非零已定义位**，不会用 `All` 发一条“所有事件”。
+
+| 事件 | 当前语义 | 不能推断 |
+|---|---|---|
+| `Presented` | Render 内容揭示成功、当前呈现版本仍有效后发出；每语义会话至多一次 | 请求受理、`Present()` 返回、显示器已完成物理合成不是同一件事 |
+| `SelectionChanged` | 中心、主/子扇区或无有效目标的身份变化；首次呈现也补一次当前选择 | 被选择的几何槽位一定配置了动作 |
+| `SubmenuExpanded` | 子层展开语义，或呈现时子层已展开 | 任意配置层切换都已有独立事件 |
+| `NavigationCancelled` | 外甩/离开有效选择，或子菜单回退 | 整个会话已结束 |
+| `ActionCommitted` | 用户确认一个已配置、通过当前快速判据的有效目标 | 后台动作已完成、参数已做全部插件执行校验或操作一定成功 |
+| `SessionCancelled` | 明确取消或没有可确认动作；终结反馈先于 End | 每种结束原因都一定伴随取消事件 |
+| `SessionEnded` | 语义会话结束；包含原因/终结结果 | 订阅者一定收到过 Presented/全部选择变化 |
+
+正常呈现常见顺序为 `Presented → SelectionChanged → … → ActionCommitted 或 SessionCancelled → SessionEnded`。快速松手可在未呈现前确认；呈现前失败、被替代或撤回也可只有 `SessionEnded`。不得把 Presented 当作每个会话必有的起点，也不得等待一个必达 End 才释放无界资源。
+
+## 5.4 `InteractionEvent` 与 `InteractionTarget`
+
+`InteractionEvent` 是 sealed 只读 DTO，无可变配置、WPF 对象或主程序类型：
+
+| 属性 | 类型 | 含义 |
+|---|---|---|
+| `SchemaVersion` | `int` | 当前为 1 |
+| `Kind` | `InteractionEventKind` | 单一语义事件 |
+| `SessionId` | `long` | 宿主进程内统一分配的正数；普通/粘滞源共用计数，不是音效私有 ID，也不是 SDK 1.9 tracker 的字符串 ID |
+| `Sequence` | `long` | 每会话生产时递增；合并/淘汰/筛选后可有间隙，不跨会话比较大小 |
+| `Timestamp` | `DateTimeOffset` | 默认 UTC 检测时间；不是显示器时钟或单调计时器，排序用 Sequence |
+| `Source` | `InteractionSource` | `NormalGesture` / `StickyWheel`；当前不包含设置试听/预览源 |
+| `ProfileId` | `string` | 用于匹配轮盘配置的键，通常为 ProcessName；呈现前尚未绑定配置时可为空，不是配置对象 |
+| `Target` | `InteractionTarget` | 只读目标身份 |
+| `Reason` | `string` | 当前原因码；不作面向用户的翻译文案，须能容忍未识别的未来值 |
+
+```csharp
+public enum InteractionSource { NormalGesture, StickyWheel }
+public enum InteractionTargetKind { None, Core, Sector, SubSector }
+
+public readonly record struct InteractionTarget(
+    InteractionTargetKind Kind, int Sector = -1, int SubSector = -1)
+{
+    public static InteractionTarget None => new(InteractionTargetKind.None);
+    public static InteractionTarget Core => new(InteractionTargetKind.Core);
+}
+```
+
+以 `Kind` 区分 None/Core，不要只看相同的默认 `-1`；主扇区通常为 `Sector >= 0, SubSector = -1`，子扇区为父/子索引都非负。子层展开但没有子目标时可为 None。几何目标和“有已配置可执行意图”不同。
+
+构造签名也属于 SDK DTO 契约，主要供宿主与测试使用；SDK 没有给插件开放广播服务：
+
+```csharp
+public InteractionEvent(
+    InteractionEventKind kind, long sessionId, long sequence,
+    InteractionSource source, string profileId, InteractionTarget target,
+    string reason = "", DateTimeOffset? timestamp = null);
+```
+
+构造器拒绝 None/复合/未知 Kind、非正 SessionId/Sequence、未知 Source/Target.Kind；null ProfileId/Reason 规范成空字符串。它不逐项验证几何索引是否符合某个轮盘配置，消费者仍应以类型和可用快照为准。
+
+## 5.5 原因与旧接口兼容
+
+当前原因示例：`ActionCommitted`、`Cancelled`、`Escaped`、`NoAction`、`NoTarget`、`Interrupted`、`Disposed`、`VolumeAdjusted`、`Superseded`、`SupersededBeforePresentation`、`ReplacedByNewSession`、`DismissedByPlugin`、`PresentationFailed`、`Closed`。`SubmenuCollapsed` 用于导航回退；非终结事件的 Reason 常为空。原因是实现输出，不是保证每类都出现的穷举状态机。
+
+SDK 1.9 `IHostWheelSessionService` 追踪调用者自己呼出的轮盘；这里的 1.10 贡献观察两个宿主轮盘源，不需要插件复制命中或执行逻辑。两者的 ID/通知时机不得互换。
+
+旧 `IPluginEvents.OnWheelOpening` 是 UI 线程上的“即将呈现”，`OnWheelClosed` 保持原 UI 线程契约；语言订阅也保持原契约。没有把旧接口暗中迁到有界队列，也没有把它们自动适配成新事件。插件同时显式注册旧/新接口时会分别收到对应通知，应避免由两条订阅重复实现同一种反馈。
+
+## 5.6 调度与背压
+
+- 回调由宿主后台按插件串行调度，同一插件多个交互贡献也共用串行消费者；不同插件相互隔离。不保证固定线程，更不保证 UI 线程。
+- 有界容量默认 **128 个待处理事件投递项/插件**，不是每贡献 128 个，也不包括已经在执行的回调。插件不能从 SDK 调整容量。
+- 只合并相邻、同 SessionId、同订阅组快照的 SelectionChanged；保留最新快照。不能越过展开/确认/结束等顺序屏障，也不能跨会话合并。
+- 满队列先淘汰一个可替代 SelectionChanged，为新事件腾空间；没有可替代项时，清空待投递项、暂停该实例代际的交互路由、异步取消并记录 overflow。没有无界关键事件备用队列。
+- overflow 不修改用户 Enabled，不自动重启或重新启用插件；该队列不会自行恢复成健康队列。恢复须经明确停止/重新加载形成新代际。
+- 广播、注册筛选、撤销和 overflow 都可能导致事件缺失，因此不是可靠消息总线，不保证每个订阅者的关键事件必达。不要无限积累“等 End 的会话”。
+- 发布者不执行插件回调、不等待插件，也不因为广播触发磁盘扫描/初始化；插件回调中的 IO 仍应异步、有限且可取消。
+
+## 5.7 生命周期与异常
+
+每次回调开始前检查当前实例、代际、注册有效性和调用入口，再取得 `PluginInvocationLease`。撤销后的缓冲事件不再进入新回调；已经取到租约的回调属于在途调用，不强制中止。
+
+回调的 CancellationToken 关联队列撤销与实例停止。必须返回代表真实工作的完整 ValueTask，并 await 其工作；不要 fire-and-forget 把宿主租约提前结束。已取消不等于 Task 已结束；不合作调用沿用既有 Pending/需重启的停止治理，不提前卸载 ALC。
+
+停用封入口/撤销路由、清理队列并取消，等活动租约归零，再 Shutdown/卸载。一个贡献异常不会传播回轮盘或阻止其他插件；当前队列只记录第一次非取消异常以避免刷日志，不能据此推断已经自动隔离整个插件或收到 ActionResult。
+
+`IInteractionRegistry` 的观察注册本身不要求借用 Wheel 能力；若插件另行呼出轮盘、控制窗口或模拟输入，仍须使用相应宿主服务及能力门禁。进程内 DLL 不是安全沙箱，观察接口也不授予修改当前导航的返回契约。
+
+## 5.8 调用路径与验证
+
+插件只认识上述 SDK 接口。下面是**宿主内部**入口，不是插件可调用的 SDK：
+
+```text
+状态机的 PluginInteractionSession
+→ PluginHost.PublishInteractionEvent(InteractionEvent)
+→ PluginRuntime.PublishInteractionEvent
+→ InteractionEventPathModule.Publish
+→ PluginCatalog.SnapshotInteractions + 无安装锁实例快照
+→ PluginInteractionQueue.Enqueue / DrainAsync
+→ 当前实例/代际/注册检查 + PluginInvocationLease
+→ IInteractionContribution.OnInteractionAsync
+```
+
+宿主 Publish 的 int 返回值是**成功受理的匹配贡献数**，包括被合并到待处理项的受理，不是已完成次数、队列数或显示器帧数；受理后仍可能因停用被撤销。注册 token 的 Dispose 与该 int 没有关联。
+
+图与时序见[架构图第 10 节](plugin-system-architecture-map.md#10-交互事件调用主路径)，职责与实现文件见[架构第 13 节](plugin-system-architecture.md#13-交互事件路径的完整调用过程)。无 GUI 记录夹具见[`scratch/interaction-event-tests/`](../../scratch/interaction-event-tests/)，只注册、记录和验证生命周期，不播放音频或执行真实动作。当前统一路径可用不等于音效插件已经迁移；视觉、DPI、多屏与手感仍为人工门禁。
+
+---
+# 6. 宿主服务 API
+
+## 6.1 `IHostActionInvoker`：通用动作原语
 
 ```csharp
 context.Host.SendHotkey("Ctrl+Shift+G");
@@ -387,7 +587,7 @@ string? text = context.Host.GetClipboardText();
 
 这些服务复用主程序已经验证过的输入、前台窗口和 Shell 逻辑。需要根据实际行为声明相应能力。
 
-## 5.2 其它服务
+## 6.2 其它服务
 
 | 服务 | 用途 | 运行时门禁 |
 |---|---|---|
@@ -404,7 +604,7 @@ string? text = context.Host.GetClipboardText();
 
 `IHostWindowService.Layouts`、`IHostSystemService.Presets` 等元数据清单可以用于生成参数选项；真正执行对应操作时才会进行能力检查。
 
-## 5.3 自己实现功能
+## 6.3 自己实现功能
 
 插件不必调用宿主服务，可以在 `ExecuteAsync` 中使用自己的：
 
@@ -418,7 +618,7 @@ string? text = context.Host.GetClipboardText();
 
 ---
 
-## 5.4 插件级设置页（SDK 1.6）
+## 6.4 插件级设置页（SDK 1.6）
 
 插件可以在 `Initialize()` 中通过 `context.SettingsPage.Register(...)` 声明一张插件级参数页。宿主在插件管理卡片上渲染“设置”入口，并复用动作参数使用的 `PluginParameterForm`。
 
@@ -427,14 +627,14 @@ string? text = context.Host.GetClipboardText();
 - 值写入插件自己的 `settings.json`，插件通过 `context.Settings` 或 `SettingsPage.GetValue()` 读取；
 - 设置页不新增能力位。
 
-## 5.5 宿主轮盘服务（SDK 1.5）
+## 6.5 宿主轮盘服务（SDK 1.5）
 
 常驻形态插件可以通过 `context.Wheel.ShowWheel(x, y)` 呼出用户配置的宿主轮盘，并通过 `DismissWheel()` 收起自己发起的轮盘。该服务需要声明 `Wheel` 能力，并与 `Ui` 分开。
 
 插件不应复刻 `RadialWindow` 或自行实现第二套轮盘。
-# 6. 安装、登记与加载模型
+# 7. 安装、登记与加载模型
 
-## 6.1 两个目录
+## 7.1 两个目录
 
 ```text
 <程序目录>\plugin\
@@ -446,7 +646,7 @@ string? text = context.Host.GetClipboardText();
 
 便携模式只改变可写宿主区的位置；程序目录下的 `plugin\` 仍是候选区。
 
-## 6.2 从安装到执行
+## 7.2 从安装到执行
 
 ```text
 DLL / plugin.json
@@ -466,7 +666,7 @@ DLL / plugin.json
 
 启动时会读取 `registry.json`、静态扫描已登记目录并恢复官方历史类型认领表；默认不会加载所有插件程序集。只有 `Preload` 或首次实际调用才会激活插件。
 
-## 6.3 持久化内容的边界
+## 7.3 持久化内容的边界
 
 `registry.json` 保存插件级信息：
 
@@ -480,9 +680,9 @@ DLL / plugin.json
 
 ---
 
-# 7. 生命周期与卸载纪律
+# 8. 生命周期与卸载纪律
 
-## 7.1 生命周期
+## 8.1 生命周期
 
 ```text
 静态扫描
@@ -500,7 +700,7 @@ DLL / plugin.json
   → 尝试卸载 ALC
 ```
 
-## 7.2 插件作者必须释放的内容
+## 8.2 插件作者必须释放的内容
 
 - `context.Events` 返回的所有订阅 token；
 - 自建线程和计时器；
@@ -524,7 +724,7 @@ public void Shutdown()
 }
 ```
 
-## 7.3 不要做的事情
+## 8.3 不要做的事情
 
 - 不要在 `Initialize()` 中做网络请求或全盘扫描；
 - 不要把长期后台任务 fire-and-forget 后立即返回成功；
@@ -537,9 +737,9 @@ public void Shutdown()
 
 ---
 
-# 8. 性能和线程约束
+# 9. 性能和线程约束
 
-## 8.1 启动阶段
+## 9.1 启动阶段
 
 宿主启动阶段设计为：
 
@@ -551,7 +751,7 @@ public void Shutdown()
 
 因此插件作者不应通过构造函数或静态初始化制造启动副作用。
 
-## 8.2 热路径
+## 9.2 热路径
 
 动作触发时的主要成本来自插件自己的实现，而不是 ID 查询。宿主已经缓存：
 
@@ -567,7 +767,7 @@ public void Shutdown()
 - 高频路径反复创建大字典或大字符串；
 - 在 `Sequential` 动作中执行长任务。
 
-## 8.3 参数和内存
+## 9.3 参数和内存
 
 - 单个参数字符串最大长度为 8 KiB；
 - 不要把文件、图片、音频转换成 Base64 写入 `config.json`；
@@ -575,7 +775,7 @@ public void Shutdown()
 - 高并发后台动作的共享状态必须线程安全；
 - 所有动作结果和异常都应尽快返回明确结论。
 
-## 8.4 历史基准参考
+## 9.4 历史基准参考
 
 仓库曾在 2026-09-15 使用 .NET 8、Release、Workstation GC 和零依赖空插件做过基准。以下数字只用于判断数量级，不是所有真实插件的保证：
 
@@ -599,9 +799,9 @@ public void Shutdown()
 
 ---
 
-# 9. 能力声明与安全边界
+# 10. 能力声明与安全边界
 
-## 9.1 能力枚举
+## 10.1 能力枚举
 
 当前 SDK 支持：
 
@@ -622,7 +822,7 @@ InputSimulation
 
 `GlobalHook` 当前首版禁止插件直接注册全局输入钩子；需要接收宿主事件时使用 `IPluginEvents`。
 
-## 9.2 如实声明
+## 10.2 如实声明
 
 能力声明用于：
 
@@ -633,15 +833,15 @@ InputSimulation
 
 它不是进程级安全沙箱。进程内插件仍可以自行调用 BCL、`Process.Start` 或 P/Invoke；因此只安装可信来源的插件。
 
-## 9.3 认领历史类型的限制
+## 10.3 认领历史类型的限制
 
 只有官方在线模块可以认领历史顶层动作类型。社区插件和新增功能都使用普通 `Plugin` 动作，不要声明新的顶层类型。
 
 ---
 
-# 10. 调试、自检与常见故障
+# 11. 调试、自检与常见故障
 
-## 10.1 自检命令
+## 11.1 自检命令
 
 构建后执行：
 
@@ -651,7 +851,7 @@ InputSimulation
   --skip-invoke
 ```
 
-`--skip-invoke` 会跳过真实动作副作用，但仍验证扫描、安装、注册、参数、惰性加载、调用租约、停用和卸载流程。需要验证真实动作效果时再去掉该选项。
+`--skip-invoke` 跳过真实动作副作用。当前完整自检的 [3g] 另要求目标包含 keypadLayer 动作与必填 keyMap；任意动作或纯观察 DLL 不满足这项前置条件，不能据此判整套回归通过/失败。完整宿主验证使用[API 自检章节的既有夹具命令](plugin-system-api-and-performance.md#111-自检命令)，观察路径另跑无副作用记录验证器。真实效果只由用户明确启动实机验收，不默认去掉该开关。
 
 指定报告文件：
 
@@ -668,7 +868,7 @@ InputSimulation
 .\StarPie.exe --plugin-paths
 ```
 
-## 10.2 日志位置
+## 11.2 日志位置
 
 ```text
 %LOCALAPPDATA%\StarPie\logs\starpie_yyyy-MM-dd.log
@@ -683,7 +883,7 @@ context.Log.Warn("警告");
 context.Log.Error("错误");
 ```
 
-## 10.3 常见故障
+## 11.3 常见故障
 
 | 现象 | 常见原因 | 处理方式 |
 |---|---|---|
@@ -698,7 +898,7 @@ context.Log.Error("错误");
 
 ---
 
-# 11. 当前不开放的能力
+# 12. 当前不开放的能力
 
 以下内容不要按照历史设计文档中的规划直接实现：
 
@@ -715,9 +915,9 @@ context.Log.Error("错误");
 
 ---
 
-# 12. 参考基准的口径
+# 13. 参考基准的口径
 
-本文第 8.4 节的数字来自早期基准环境：
+本文第 9.4 节的数字来自早期基准环境：
 
 ```text
 .NET 8.0.26
@@ -744,10 +944,11 @@ Workstation GC
 - [SDK 入口接口](../sdk/StarPie.Plugin.Abstractions/IStarPiePlugin.cs)
 - [插件上下文](../sdk/StarPie.Plugin.Abstractions/IPluginContext.cs)
 - [动作契约](../sdk/StarPie.Plugin.Abstractions/Actions.cs)
+- [交互契约](../sdk/StarPie.Plugin.Abstractions/Interactions.cs)
 - [宿主服务](../sdk/StarPie.Plugin.Abstractions/Services.cs)
 - [清单模型](../sdk/StarPie.Plugin.Abstractions/PluginManifest.cs)
-- [入门示例](../samples/HelloAction/)
-- [进阶示例](../samples/ScreenBrightness/)
+- [动作入门例子](plugin-development-quickstart.md#8-实现第一个动作)
+- [交互观察例子](plugin-development-quickstart.md#9-实现第一个交互贡献)及[纯记录夹具](../../scratch/interaction-event-tests/Fixture/)
 
 ## SDK 1.8：按调用指定进程权限
 

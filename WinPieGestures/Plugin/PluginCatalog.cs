@@ -99,6 +99,8 @@ internal sealed class PluginSettingsPageRegistration
 internal sealed class PluginCatalog
 {
     private readonly object _gate = new();
+    private readonly Dictionary<string, PluginInteractionRegistration> _interactions = new(StringComparer.OrdinalIgnoreCase);
+    private PluginInteractionGroup[] _interactionSnapshot = Array.Empty<PluginInteractionGroup>();
 
     private readonly Dictionary<string, PluginActionRegistration> _actions = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginIconRegistration> _icons = new(StringComparer.OrdinalIgnoreCase);
@@ -135,9 +137,14 @@ internal sealed class PluginCatalog
     /// <summary>提交暂存注册。返回 false 表示存在冲突，此时<b>一条都不会生效</b>。</summary>
     public bool Commit(PluginRegistrationSession session, out string error)
     {
+        lock (session.InteractionGate)
         lock (_gate)
         {
+            session.InteractionRegistrationClosed = true;
             var conflicts = new List<string>(session.Errors);
+            foreach (var interaction in session.StagedInteractions)
+                if (interaction.IsRegistered && _interactions.ContainsKey(interaction.FullId))
+                    conflicts.Add("Interaction contribution already registered: " + interaction.FullId);
 
             foreach (PluginActionRegistration action in session.StagedActions)
             {
@@ -198,6 +205,9 @@ internal sealed class PluginCatalog
                 _settingsPages[session.StagedSettingsPage.PluginId] = session.StagedSettingsPage;
             }
 
+            foreach (var interaction in session.StagedInteractions)
+                if (interaction.IsRegistered) _interactions.Add(interaction.FullId, interaction);
+            RebuildInteractionSnapshot();
             ResolveStagedDisplayNames(session);
 
             error = "";
@@ -239,8 +249,12 @@ internal sealed class PluginCatalog
     /// <summary>丢弃暂存内容（注册失败或插件停用）。</summary>
     public void Discard(PluginRegistrationSession session)
     {
+        lock (session.InteractionGate)
         lock (_gate)
         {
+            session.InteractionRegistrationClosed = true;
+            foreach (var interaction in session.StagedInteractions) interaction.Dispose();
+            session.StagedInteractions.Clear();
             session.StagedActions.Clear();
             session.StagedIcons.Clear();
             session.StagedI18n.Clear();
@@ -283,6 +297,31 @@ internal sealed class PluginCatalog
             // 设置页必须一起撤：否则插件停用后卡片上仍留着「设置」按钮，
             // 点开是一张已经没有主人的表单，改了值也没人读。
             _settingsPages.Remove(pluginId);
+            foreach (var entry in _interactions.Where(p => p.Value.Owner.PluginId.Equals(pluginId, StringComparison.OrdinalIgnoreCase)).ToArray())
+            {
+                entry.Value.Dispose();
+                _interactions.Remove(entry.Key);
+            }
+            RebuildInteractionSnapshot();
+        }
+    }
+
+    internal PluginInteractionGroup[] SnapshotInteractions() => Volatile.Read(ref _interactionSnapshot);
+
+    private void RebuildInteractionSnapshot() => Volatile.Write(ref _interactionSnapshot,
+        _interactions.Values.GroupBy(r => r.Owner)
+            .Select(g => new PluginInteractionGroup(g.ToArray())).ToArray());
+
+    internal void RemoveInteraction(PluginInteractionRegistration registration)
+    {
+        lock (_gate)
+        {
+            registration.Dispose();
+            if (_interactions.TryGetValue(registration.FullId, out var current) && ReferenceEquals(current, registration))
+            {
+                _interactions.Remove(registration.FullId);
+                RebuildInteractionSnapshot();
+            }
         }
     }
 
@@ -395,6 +434,9 @@ internal sealed class PluginRegistrationSession
 
     public string PluginId { get; }
 
+    internal readonly object InteractionGate = new();
+    internal bool InteractionRegistrationClosed;
+    internal readonly List<PluginInteractionRegistration> StagedInteractions = new();
     internal readonly List<PluginActionRegistration> StagedActions = new();
     internal readonly List<PluginIconRegistration> StagedIcons = new();
     internal readonly List<PluginCatalog.PluginI18nRegistration> StagedI18n = new();
@@ -420,7 +462,7 @@ internal sealed class PluginRegistrationSession
     public void Report(string error) => Errors.Add(error);
 
     public int StagedCount =>
-        StagedActions.Count + StagedIcons.Count + StagedI18n.Count + (StagedSettingsPage == null ? 0 : 1);
+        StagedActions.Count + StagedIcons.Count + StagedI18n.Count + StagedInteractions.Count + (StagedSettingsPage == null ? 0 : 1);
 
     public bool Commit(out string error) => _catalog.Commit(this, out error);
 

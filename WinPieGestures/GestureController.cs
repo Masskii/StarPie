@@ -5,6 +5,9 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 
+using StarPie.Plugin;
+using WinPieGestures.Plugins;
+
 namespace WinPieGestures;
 
 public class GestureController : IDisposable
@@ -65,6 +68,7 @@ public class GestureController : IDisposable
 	private string _pendingMouseReleaseButton = "RightButton";
 
 	private long _soundSessionId = 0L;
+	private PluginInteractionSession? _interactionSession;
 
 	// ---- 键盘触发穿透模式 ----
 	// 触发键 KeyDown/KeyUp 一律原生放行，仅用持握时长+拖动阈值唤出轮盘。
@@ -332,7 +336,15 @@ public class GestureController : IDisposable
 		pending?.Cancel();
 	}
 
-	private void CancelGestureTracking(bool allowTerminalFeedback = false)
+	private void StartInteractionSession(WheelProfile profile)
+	{
+		lock (_uiUpdateSync)
+		{
+			_interactionSession?.End("Superseded");
+			_interactionSession = new PluginInteractionSession(InteractionSource.NormalGesture, profile.ProcessName);
+		}
+	}
+	private void CancelGestureTracking(bool allowTerminalFeedback = false, string reason = "Interrupted")
 	{
 		_kbTriggerWaiting = false;
 		_isWaitingForThreshold = false;
@@ -345,6 +357,9 @@ public class GestureController : IDisposable
 		InvalidatePendingExecutionSession();
 		lock (_uiUpdateSync)
 		{
+			_interactionSession?.Cancel(reason);
+			_interactionSession?.End(reason);
+			_interactionSession = null;
 			_gestureVersion++;
 			_highlightUpdateScheduled = false;
 			_pendingGestureVersion = _gestureVersion;
@@ -354,12 +369,13 @@ public class GestureController : IDisposable
 		ActionExecutor.ReleaseStuckModifiers();
 	}
 
-	private (int Sector, int SubSector, WheelProfile? Profile, RadialWindow? Window, bool IsEscaped, long PresentationVersion) EndActiveGesture(bool allowTerminalFeedback = true)
+	private (int Sector, int SubSector, WheelProfile? Profile, RadialWindow? Window, bool IsEscaped, long PresentationVersion, PluginInteractionSession? Interaction) EndActiveGesture(bool allowTerminalFeedback = true)
 	{
 		lock (_uiUpdateSync)
 		{
 			long presentationVersion = _gestureVersion;
-			var result = (_selectedSectorIndex, _selectedSubSectorIndex, _activeProfile, _radialWindow, _lastEscapedState, presentationVersion);
+			var result = (_selectedSectorIndex, _selectedSubSectorIndex, _activeProfile, _radialWindow, _lastEscapedState, presentationVersion, _interactionSession);
+			_interactionSession = null;
 			_isGestureActive = false;
 			_isWaitingForThreshold = false;
 			_gestureVersion++;
@@ -540,6 +556,8 @@ public class GestureController : IDisposable
 			_pendingGestureVersion = gestureVersion;
 			shouldSchedule = !_highlightUpdateScheduled;
 			_highlightUpdateScheduled = true;
+
+			_interactionSession?.Update(sectorIndex, subSectorIndex, showSubTier, isEscaped);
 
 			// 音效反馈触发：扇区切换、二级展开与外甩取消
 			if (!prevEscaped && isEscaped)
@@ -1560,6 +1578,7 @@ public class GestureController : IDisposable
 				: ActiveWindowHelper.GetActiveWindowProcessName();
 			WheelProfile profile = ConfigManager.GetProfileForProcess(processName);
 			_activeProfile = profile;
+			StartInteractionSession(profile);
 			long gestureVersion = GetCurrentGestureVersion();
 			Point startPoint = _startPoint;
 			var focusSession = isKbWaiting ? null : _currentWheelFocusSession;
@@ -1665,6 +1684,7 @@ public class GestureController : IDisposable
 		bool volumeTookOver = _volumeGestureTookOver;
 		float volumeBaseline = _volumeBaseline;
 		var finalState = EndActiveGesture(allowTerminalFeedback: !volumeTookOver);
+			var endedInteractionSession = finalState.Interaction;
 		int finalSector = finalState.Sector;
 		int finalSubSector = finalState.SubSector;
 		WheelProfile? finalProfile = finalState.Profile;
@@ -1684,16 +1704,19 @@ public class GestureController : IDisposable
 		_volumeMaxedOutDist = -1.0;
 		((DispatcherObject)Application.Current).Dispatcher.BeginInvoke((Delegate)(Action)delegate
 		{
+			using var interactionCompletion = endedInteractionSession;
 			ActionItem? targetAction = null;
 			try
 			{
 				if (_disposed)
 				{
+					endedInteractionSession?.End("Disposed");
 					return;
 				}
 
 				if (focusSession != null && (focusSession.IsCancelled || !ReferenceEquals(focusSession, _pendingExecutionSession)))
 				{
+					endedInteractionSession?.Cancel("Superseded");
 					AppLogger.LogWarn($"Gesture release execution skipped: focus session for 0x{focusSession.TargetInfo.Hwnd:X} ({focusSession.TargetInfo.ProcessName}) was cancelled or superseded.");
 					return;
 				}
@@ -1712,6 +1735,7 @@ public class GestureController : IDisposable
 				CloseGestureWindow(endedWindow, endedPresentationVersion);
 				if (volumeTookOver)
 				{
+					endedInteractionSession?.End("VolumeAdjusted");
 					return;
 				}
 				if (!isEscaped && finalProfile != null)
@@ -1766,6 +1790,7 @@ public class GestureController : IDisposable
 
 				if (targetAction != null)
 				{
+					endedInteractionSession?.Confirm(targetAction, PluginInteractionSession.Target(finalSector, finalSubSector, isEscaped), isEscaped ? "Escaped" : "NoAction");
 					SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.NormalGesture, endedSoundSessionId);
 
 					// 构建目标执行上下文，将目标保护延伸至 ActionExecutor 队列消费入口
@@ -1794,6 +1819,7 @@ public class GestureController : IDisposable
 				}
 				else
 				{
+					endedInteractionSession?.Cancel(isEscaped ? "Escaped" : "NoAction");
 					SoundEffectManager.Play(SoundType.GestureCancel, SoundSessionSource.NormalGesture, endedSoundSessionId);
 					Interlocked.CompareExchange(ref _pendingExecutionSession, null, focusSession);
 				}
@@ -1933,7 +1959,7 @@ public class GestureController : IDisposable
 			if (e.VkCode == 27)
 			{
 				long endedSoundSessionId = _soundSessionId;
-				CancelGestureTracking(allowTerminalFeedback: true);
+				CancelGestureTracking(allowTerminalFeedback: true, reason: "Cancelled");
 				SoundEffectManager.Play(SoundType.GestureCancel, SoundSessionSource.NormalGesture, endedSoundSessionId);
 				e.Handled = true;
 				return;
@@ -2101,6 +2127,7 @@ public class GestureController : IDisposable
 			bool volumeTookOver = _volumeGestureTookOver;
 			float volumeBaseline = _volumeBaseline;
 			var finalState = EndActiveGesture(allowTerminalFeedback: !volumeTookOver);
+			var endedInteractionSession = finalState.Interaction;
 			int finalSector = finalState.Sector;
 			int finalSubSector = finalState.SubSector;
 			WheelProfile? finalProfile = finalState.Profile;
@@ -2119,6 +2146,7 @@ public class GestureController : IDisposable
 			_volumeMaxedOutDist = -1.0;
 			((DispatcherObject)Application.Current).Dispatcher.BeginInvoke((Delegate)(Action)delegate
 			{
+				using var interactionCompletion = endedInteractionSession;
 				if (volumeTookOver)
 				{
 					// 本手势已接管音量调节：外甩取消则恢复基准音量，正常松手保持最终音量；
@@ -2135,6 +2163,7 @@ public class GestureController : IDisposable
 				CloseGestureWindow(endedWindow, endedPresentationVersion);
 				if (volumeTookOver)
 				{
+					endedInteractionSession?.End("VolumeAdjusted");
 					return;
 				}
 				ActionItem? targetAction = null;
@@ -2163,11 +2192,13 @@ public class GestureController : IDisposable
 				}
 				if (targetAction != null)
 				{
+					endedInteractionSession?.Confirm(targetAction, PluginInteractionSession.Target(finalSector, finalSubSector, isEscaped), isEscaped ? "Escaped" : "NoAction");
 					SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.NormalGesture, endedSoundSessionId);
 					ActionExecutor.EnqueueAction(targetAction);
 				}
 				else
 				{
+					endedInteractionSession?.Cancel(isEscaped ? "Escaped" : "NoAction");
 					SoundEffectManager.Play(SoundType.GestureCancel, SoundSessionSource.NormalGesture, endedSoundSessionId);
 				}
 			}, DispatcherPriority.Normal, Array.Empty<object>());
@@ -2242,6 +2273,7 @@ public class GestureController : IDisposable
 					? _currentWheelFocusSession.TargetInfo.ProcessName
 					: ActiveWindowHelper.GetActiveWindowProcessName();
 				_activeProfile = ConfigManager.GetProfileForProcess(activeWindowProcessName);
+				StartInteractionSession(_activeProfile);
 				Point center = _startPoint;
 				WheelProfile profile = _activeProfile;
 				Point initialPos = e.Position;
@@ -2452,6 +2484,7 @@ public class GestureController : IDisposable
 		}
 
 		RadialWindow window;
+		PluginInteractionSession interaction;
 		lock (_uiUpdateSync)
 		{
 			if (_disposed || !_isGestureActive || gestureVersion != _gestureVersion || (focusSession != null && focusSession.IsCancelled))
@@ -2459,16 +2492,19 @@ public class GestureController : IDisposable
 				return false;
 			}
 			window = _radialWindow ??= new RadialWindow(center, profile);
+			interaction = _interactionSession ??= new PluginInteractionSession(InteractionSource.NormalGesture, profile.ProcessName);
+			interaction.Update(_selectedSectorIndex, _selectedSubSectorIndex, _lastShowSubTier, _lastEscapedState);
 		}
 
 		try
 		{
-			window.Present(center, profile, ConfigManager.ConfigurationRevision, gestureVersion);
+			window.Present(center, profile, ConfigManager.ConfigurationRevision, gestureVersion, interaction.Presented);
 			lock (_uiUpdateSync)
 			{
 				if (_disposed || !_isGestureActive || gestureVersion != _gestureVersion || (focusSession != null && focusSession.IsCancelled) || !ReferenceEquals(_radialWindow, window))
 				{
 					window.Dismiss(gestureVersion);
+					interaction.End("SupersededBeforePresentation");
 					return false;
 				}
 			}
@@ -2491,6 +2527,7 @@ public class GestureController : IDisposable
 		}
 		catch
 		{
+			interaction.End("PresentationFailed");
 			lock (_uiUpdateSync)
 			{
 				if (ReferenceEquals(_radialWindow, window))

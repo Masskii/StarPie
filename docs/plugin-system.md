@@ -104,7 +104,7 @@
 - 宿主服务的元数据只有一份来源，并在访问时读取当前语言，不缓存翻译。
 - ShellTool 配置存短 ID；执行体兼容短 ID 与规范 Verb。`Verbs` 仅用于展示，不作为旧配置白名单。
 - SDK 版本字符串与 major/minor 常量需要自检保持一致；每次新增公共服务同步更新版本演进注释和契约测试。
-- 当前候选 SDK 为 1.9：1.8 增加 `ProcessLaunchMode`、三个显式模式启动入口与通用旧值回填；1.9 增加派生自 `IHostWheelService` 的 `IHostWheelSessionService`。旧接口和程序集身份保持不变。
+- 当前候选 SDK 为 1.10：1.8 增加 `ProcessLaunchMode`、三个显式模式启动入口与通用旧值回填；1.9 增加派生自 `IHostWheelService` 的 `IHostWheelSessionService`。旧接口和程序集身份保持不变。1.10 增加可选 IInteractionPluginContext 和只读交互贡献，Initialize 原子注册后由每插件有界队列调度；旧事件接口的同步契约不变。
 - 三态启动权限参数属于插件声明与 `ExtensionData`；未声明新值时可回填旧 `RunAsStandardUser`，显式新值优先，回填不自动写盘。固定权限启动失败或用户取消授权时，不得改用其他权限重试。
 - 轮盘会话服务装配到对应插件实例，通知与实例 generation、活动调用租约绑定。旧实例的服务不得操作重载后的会话；插件只追踪自己呼出的轮盘，不复制宿主扇区执行逻辑。
 
@@ -118,3 +118,14 @@
 6. SDK、能力、停用、配置迁移或安装流程改动需要独立审查与用户实机验收。
 
 新增自检断言必须证明会红：使用安全变异、基线失败或可复现反例。仅检查源文件是否包含某个字符串不能证明功能正确。
+
+## 9. 统一交互路径文档入口
+
+SDK 1.10 当前源码候选的文档已分为四层：
+
+- [API 第 5 节](../plugin/docs/plugin-system-api-and-performance.md#5-交互事件-api)：签名、字段/枚举、激活前提、注册异常、线程/背压与取消。
+- [快速入门第 9 节](../plugin/docs/plugin-development-quickstart.md#9-实现第一个交互贡献)：SDK/BCL 观察插件、清单、启用/预加载与无副作用验证。
+- [架构第 13 节](../plugin/docs/plugin-system-architecture.md#13-交互事件路径的完整调用过程)：模块归属、实际生产时点、锁内冻结/锁外发布及兼容边界。
+- [架构图第 10 节](../plugin/docs/plugin-system-architecture-map.md#10-交互事件调用主路径)：注册/回滚、Render、队列、撤回竞态和停止排空五条图。
+
+发布边界与人工门禁不能被文档或无 GUI 绿色结果替代；音效插件迁移仍是后续独立阶段。

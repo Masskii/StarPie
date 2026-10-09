@@ -254,6 +254,28 @@ internal sealed class PluginInstance
         }
     }
 
+    internal bool CanAcceptInteraction(long generation)
+    {
+        lock (_gate)
+            return GenerationId == generation && Entry.Enabled && _acceptingCalls &&
+                   State is PluginRuntimeState.Active or PluginRuntimeState.Faulted;
+    }
+
+    internal bool TryAcquireInvocation(long generation, PluginCallKind kind,
+        out PluginInvocationLease? lease, out string error)
+    {
+        lock (_gate)
+        {
+            if (GenerationId != generation || !Entry.Enabled)
+            {
+                lease = null;
+                error = "Interaction owner generation is no longer active.";
+                return false;
+            }
+            return TryAcquireInvocation(kind, out lease, out error);
+        }
+    }
+
     internal Task BeginStopping()
     {
         CancellationTokenSource cancellation;
@@ -702,6 +724,8 @@ internal sealed class PluginInstance
     /// </summary>
     private void Teardown()
     {
+        // Initialize 异常也必须关闭注册事务，不能只把本实例字段置空。
+        _session?.Discard();
         // 配置服务是宿主对象，必须在卸载 ALC 前剪断它持有的插件回调。
         Settings.ClearSubscriptions();
 
