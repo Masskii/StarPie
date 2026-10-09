@@ -11,6 +11,7 @@
 ## 2. 设计决策与解耦架构
 
 ### 2.1 视觉呈现与死区判定严格解耦
+
 - **视觉层**：
   - `RadialWindow`：当 `ShowCoreCircle == false` 时，将整个中心容器 `CoreGrid.Visibility` 设为 `Visibility.Collapsed`。
   - `SettingsWindow.RenderLiveWheelPreview`：将预览中心容器 `_previewCoreGrid.Visibility` 设为 `Visibility.Collapsed`。
@@ -21,6 +22,7 @@
   - 解耦理由：用户仅希望去除中心圆的视觉遮挡，而不希望改变既有的肌肉记忆和防手抖安全区。若关闭视觉的同时强行消除死区判定，用户轻微拖动就会误触扇区动作，造成极高的误触率。
 
 ### 2.2 控制台界面联动与配置保留
+
 - **单向禁用而非清空值**：
   - 在控制台「外观样式」页面的「中心核心圆与图案文字设置」卡片中提供「显示中心核心圆」开关（`ShowCoreCircleCheckBox`）。
   - 当开关关闭时，下属的 `CoreDetailsPanel`（包含中心图标开关、图案类型选择、自定义图片、缩放与偏移滑动条、中心文字字体与色彩设置等）以及几何尺寸中的 `CoreRadiusSlider` 整体进入 `IsEnabled = false` 禁用状态，并调低半透明度（`Opacity = 0.5`）。
@@ -37,6 +39,7 @@
 ## 3. 验证与人工验收关注点
 
 ### 3.1 自动化验证（无 GUI）
+
 通过 `scratch/desktop-pet-core-tests/` 覆盖以下 27 项断言：
 1. 默认配置反序列化及新建默认时 `ShowCoreCircle == true`。
 2. 历史遗留 JSON（缺失该字段）自动默认赋值 `true`。

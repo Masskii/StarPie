@@ -119,16 +119,12 @@ internal static class PluginSelfTest
             }
 
             // 空置路径必须可以安全调用，不应因为尚无贡献实现而影响主程序。
-            int eventReceivers = PluginHost.PublishInteractionEvent(new PluginInteractionEventEnvelope
-            {
-                EventType = "selftest.runtime.ready",
-                SessionId = 0,
-                Sequence = 0,
-                Context = new ActionContext(),
-            });
+            int eventReceivers = PluginHost.PublishInteractionEvent(new InteractionEvent(
+                InteractionEventKind.Presented, 1, 1, InteractionSource.NormalGesture,
+                "selftest.none", InteractionTarget.None));
             if (eventReceivers != 0)
             {
-                Fail("交互路径占位", $"尚未开放统一交互贡献时应返回 0，实际为 {eventReceivers}。");
+                Fail("交互路径无订阅者", $"没有匹配交互贡献时应返回 0，实际为 {eventReceivers}。");
             }
 
             PluginWheelStructureSnapshot emptyStructure = PluginHost.QueryWheelStructureAsync(

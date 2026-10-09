@@ -935,40 +935,25 @@ ActionExecutionPathModule.ExecuteClaimed()
 
 ### 12.2 交互事件路径
 
-状态：**兼容骨架已存在，部分事件订阅可用，统一事件队列尚未完成。**
-
-现有接口：
+状态：**旧同步订阅兼容；SDK 1.10 统一贡献和有界队列为待验收候选。**
 
 ```text
-PluginRuntime.RegisterWheelOpening()
-PluginRuntime.RegisterWheelClosed()
-PluginRuntime.RaiseWheelOpening()
-PluginRuntime.RaiseWheelClosed()
+插件 Initialize
+└─ IInteractionPluginContext.Interactions.Register(IInteractionContribution)
+   └─ PluginRegistrationSession → PluginCatalog.Commit / Discard
+
+真实轮盘语义变化
+└─ PluginHost.PublishInteractionEvent(InteractionEvent)
+   └─ PluginRuntime → InteractionEventPathModule.Publish
+      └─ 每插件容量 128 的串行后台队列
+         └─ 当前实例 / generation / PluginInvocationLease
+            └─ IInteractionContribution.OnInteractionAsync
 ```
 
-实现：
+广播不加载插件。相邻同会话 SelectionChanged 可合并，生命周期事件是屏障。容量耗尽且没有可替代事件时，暂停该代际的交互路由并取消，不更改用户启用偏好。
 
-```text
-InteractionEventPathModule.RegisterWheelOpening()
-InteractionEventPathModule.RegisterWheelClosed()
-InteractionEventPathModule.RaiseWheelOpening()
-InteractionEventPathModule.RaiseWheelClosed()
-```
-
-统一事件入口：
-
-```text
-PluginRuntime.PublishInteractionEvent()
-└─ InteractionEventPathModule.Publish()
-   └─ 当前返回 0
-```
-
-当前结论：
-
-- `OnWheelOpening` / `OnWheelClosed` 兼容订阅有具体处理；
-- `PublishInteractionEvent()` 只是稳定接缝；
-- 正式的统一交互事件队列尚未完成。
-
+旧 RegisterWheelOpening / RegisterWheelClosed / RaiseWheelOpening / RaiseWheelClosed 的同步时机与线程契约保持不变。
+详细验证与已知基线失败见 [第一阶段实施契约](interaction-event-stage1-handoff.md)。
 ### 12.3 轮盘结构路径
 
 状态：**安全占位，尚未向插件开放正式结构契约。**

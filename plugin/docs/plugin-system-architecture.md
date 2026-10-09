@@ -2,7 +2,7 @@
 
 > **本分支采用本方案**（2026-09-17 与上游 `dev-plugin` 同步后并入）：本文档描述的是「统一调用运行时 + 路径模块 + 活动调用租约 + 异步停用状态机」重构，即本分支的**现行实现**。此前曾判定它与 `AGENTS.md` §4 的顶层类型认领机制在 `PluginHost` 上不可共存，并据此删除了新增模块 `PluginRuntime` / `PluginPathModules`（915 行）；同步上游后确认**二者可以共存** —— `PluginHost` 既经 `PluginRuntime` 登记并分流 `action-execution` / `interaction-event` / `wheel-structure` 三条路径，也经 `PluginActionClaimRegistry` 做顶层类型认领，两个模块已恢复并在用。插件系统的通用规范见 `AGENTS.md` §4，运行时重构要点见 §4。
 >
-> 文档状态：宿主公共基础设施与动作执行路径已基本完成；交互事件路径保留兼容骨架，轮盘结构路径暂为安全占位。
+> 文档状态：宿主公共基础设施与动作执行路径已基本完成；统一交互事件路径已有 SDK 1.10 契约与有界调度候选，轮盘结构路径暂为安全占位。
 >
 > 最后更新：2026-09-17
 >
@@ -184,7 +184,7 @@ flowchart TD
 |---|---|
 | `PluginCatalog.cs` | 保存成功提交的动作、图标和词条注册；通过 `PluginRegistrationSession` 实现“暂存 → 冲突检查 → 原子提交 / 丢弃”；停用时按插件 ID 撤销全部贡献。 |
 | `PluginContext.cs` | 实现 SDK 的 `IPluginContext`；提供动作、图标、词条注册表，以及日志、设置、事件和宿主服务的装配。注册时检查动作 ID、参数字段、枚举选项和 SVG 等契约。 |
-| `PluginPathModules.cs` | 提供动作执行、交互事件和轮盘结构三条路径模块。当前动作执行路径已完整使用；交互事件保留兼容接缝；轮盘结构仍是安全占位。 |
+| `PluginPathModules.cs` | 提供动作执行、交互事件和轮盘结构三条路径模块。动作执行路径已完整使用；交互事件保留旧同步兼容接口并提供统一有界队列；轮盘结构仍是安全占位。 |
 | `PluginActionBinding.cs` | 将设置页的 `Type="Plugin"`、`PluginActionRef` 和动作列表绑定起来；按插件分组展示当前已安装且可用的动作。 |
 | `PluginParameterValidator.cs` | 对 `Required`、`MaxLength`、`Min`、`Max`、正则和枚举等宿主声明约束做统一校验。保存和执行共用同一入口。 |
 | `PluginParameterForm.cs` | 根据 `ParameterField` 声明生成宿主统一风格的参数控件，不允许插件提供自定义 XAML。 |
@@ -1128,31 +1128,30 @@ Active
 
 ## 19. 交互事件路径当前状态
 
-文件：`WinPieGestures/Plugin/PluginPathModules.cs`
+SDK 1.10 候选提供 `IInteractionPluginContext` 可选派生上下文、`IInteractionRegistry` 与 `IInteractionContribution`。旧 `IPluginContext` / `IPluginEvents` 不改必实现成员，旧同步轮盘与语言订阅维持原契约。
 
-当前已经具备：
+```text
+普通手势 / 粘滞轮盘的只读语义事件
+→ PluginHost.PublishInteractionEvent(InteractionEvent)
+→ PluginRuntime → InteractionEventPathModule
+→ Initialize 事务成功提交的匹配贡献
+→ 每插件有界后台队列（默认 128）
+→ 当前实例/代际校验与活动调用租约
+→ IInteractionContribution.OnInteractionAsync
+```
 
-- `InteractionEventPathModule`；
-- 路径生命周期；
-- 旧版 Opening/Closed 订阅；
-- 语言事件订阅；
-- 回调租约；
-- 停用时撤销订阅；
-- 统一事件信封占位。
+- 广播只通知已加载订阅者，不加载、安装或重新启用插件。
+- 元数据注册时校验/快照；Initialize 失败丢弃，token 或停用撤销。
+- 同插件串行，插件间隔离；不在输入/发布线程执行插件代码。
+- SessionId 两种轮盘共用进程计数，Sequence 在生产端递增，事件不可变。
+- 相邻同会话选中变化合并，不越过导航或终结屏障；满队列优先淘汰可替代选择。
+- 全关键事件溢出时暂停该代际的交互路由并异步取消/诊断，不更改 Enabled 偏好，也不新增无界备用队列。
+- 每次真实异步回调完成才释放租约；停用清队列并取消，不合作调用仍受既有 Pending 停止治理保护。
+- 第一阶段内置音效保留。无 GUI 记录夹具见 `scratch/interaction-event-tests/`；真实 GUI 时序/手感仍需用户验收。
 
-尚未完成：
-
-- 正式 `IInteractionContribution`；
-- 每插件有界队列；
-- `SessionId` 和 `Sequence`；
-- 高频事件合并；
-- 背压；
-- 真实轮盘状态机语义事件接入。
-
-交互事件路径的原则是只观察，不修改当前选择、结构和导航结果。
+详细契约、基线失败及阶段门禁见 [第一阶段实施契约](interaction-event-stage1-handoff.md)。候选实现不等于已发布或已通过全部门禁。
 
 ---
-
 ## 20. 轮盘结构路径当前状态
 
 当前只有：
@@ -1267,7 +1266,7 @@ public async Task<ActionResult> ExecuteAsync(
 
 ### 其他路径
 
-- 交互事件：兼容骨架已存在，正式事件队列未完成；
+- 交互事件：SDK 1.10 有界队列候选已实现，独立复核/实机门禁见实施证据；
 - 轮盘结构：安全占位已存在，第三方契约未开放。
 
 ---
@@ -1291,7 +1290,7 @@ public async Task<ActionResult> ExecuteAsync(
 | `PluginContext` | `IPluginContext` 的宿主实现，向插件提供服务接口 |
 | `ActionExecutionPathModule` | 动作请求、激活、查询、校验和调用的路径语义 |
 | `PluginInvoker` | Sequential/Background、超时、结果和健康度 |
-| `InteractionEventPathModule` | 当前旧事件订阅与未来统一事件路径 |
+| `InteractionEventPathModule` | 旧同步事件订阅与统一异步交互贡献路径 |
 | `WheelStructurePathModule` | 未来声明式轮盘结构路径，目前为空实现 |
 | `KeyboardRemapPathModule` | 键盘重映射路径模块，负责停用时自动撤销会话与按键释放 |
 | `PluginSelfTest` | 临时沙箱中的端到端识别、安装、调用、租约、停用和卸载测试 |

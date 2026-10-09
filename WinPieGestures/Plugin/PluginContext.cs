@@ -12,7 +12,7 @@ namespace WinPieGestures.Plugins;
 /// 插件作者只能针对 SDK 编程，宿主内部怎么重构都不影响他们。
 /// </para>
 /// </summary>
-internal sealed class PluginContext : IPluginContext
+internal sealed class PluginContext : IInteractionPluginContext
 {
     public PluginContext(
         PluginMetadata metadata,
@@ -32,6 +32,7 @@ internal sealed class PluginContext : IPluginContext
         Events = events;
 
         Actions = new PluginActionRegistry(session, metadata.Id);
+        Interactions = new PluginInteractionRegistry(session, instance, PluginHost.Catalog);
         I18n = new PluginI18nRegistry(session, metadata.Id);
         Icons = new PluginIconRegistry(session, metadata.Id);
         SettingsPage = new PluginSettingsPageRegistry(session, metadata.Id, settings);
@@ -66,6 +67,8 @@ internal sealed class PluginContext : IPluginContext
     public IPluginSettings Settings { get; }
 
     public IActionRegistry Actions { get; }
+
+    public IInteractionRegistry Interactions { get; }
 
     public II18nRegistry I18n { get; }
 

@@ -68,7 +68,7 @@ StarPie.Plugin.Abstractions.dll
 - SVG 图标：`IIconRegistry.RegisterSvg`；
 - 多语言词条：`II18nRegistry`。
 
-`IPluginContext` 中的交互事件服务可以用于当前已提供的事件订阅；轮盘结构和其它扩展路径仍属于宿主内部扩展接缝，不能把规划中的接口当作当前稳定公共 API 使用。
+旧 `IPluginContext.Events` 保持同步事件订阅；SDK 1.10 候选通过可选 `IInteractionPluginContext.Interactions` 注册统一只读贡献，在宿主后台有界队列中串行回调。该候选尚需门禁，不等于已发布契约；轮盘结构路径仍是宿主内部扩展接缝。
 
 ## 1.3 当前权威文档层级
 
