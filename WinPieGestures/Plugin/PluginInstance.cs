@@ -89,6 +89,7 @@ internal sealed class PluginInvocationLease : IDisposable
 /// </summary>
 internal sealed class PluginInstance
 {
+    private static long _globalGenerationCounter;
     private readonly object _gate = new();
     private readonly object _loadGate = new();
     private bool _acceptingCalls;
@@ -106,6 +107,9 @@ internal sealed class PluginInstance
     }
 
     public string PluginId { get; }
+
+    /// <summary>当前实例的加载代际标识，重载或新实例时递增。</summary>
+    public long GenerationId { get; private set; } = Interlocked.Increment(ref _globalGenerationCounter);
 
     public PluginRegistryEntry Entry { get; set; }
 
@@ -250,6 +254,28 @@ internal sealed class PluginInstance
         }
     }
 
+    internal bool CanAcceptInteraction(long generation)
+    {
+        lock (_gate)
+            return GenerationId == generation && Entry.Enabled && _acceptingCalls &&
+                   State is PluginRuntimeState.Active or PluginRuntimeState.Faulted;
+    }
+
+    internal bool TryAcquireInvocation(long generation, PluginCallKind kind,
+        out PluginInvocationLease? lease, out string error)
+    {
+        lock (_gate)
+        {
+            if (GenerationId != generation || !Entry.Enabled)
+            {
+                lease = null;
+                error = "Interaction owner generation is no longer active.";
+                return false;
+            }
+            return TryAcquireInvocation(kind, out lease, out error);
+        }
+    }
+
     internal Task BeginStopping()
     {
         CancellationTokenSource cancellation;
@@ -278,6 +304,7 @@ internal sealed class PluginInstance
         }
 
         try { cancellation.Cancel(); } catch { }
+        try { StickyWheelSession.RevokePluginCallbacks(PluginId, this, GenerationId); } catch { }
         return drainTask;
     }
 
@@ -366,6 +393,10 @@ internal sealed class PluginInstance
     private bool LoadCore(out string failureReason)
     {
         failureReason = "";
+        lock (_gate)
+        {
+            GenerationId = Interlocked.Increment(ref _globalGenerationCounter);
+        }
         SetState(PluginRuntimeState.Loading);
 
         try
@@ -507,7 +538,7 @@ internal sealed class PluginInstance
             _session = PluginHost.Catalog.BeginSession(PluginId);
             _events = new PluginEventService(this);
             _pluginContext = new PluginContext(
-                metadata, Directory, dataDirectory, _session, Logger, Settings, _events);
+                metadata, Directory, dataDirectory, _session, Logger, Settings, _events, this);
 
             // ⑥ 交给插件注册贡献点。这是唯一一次执行插件代码的初始化时机。
             try
@@ -645,6 +676,7 @@ internal sealed class PluginInstance
         try
         {
             _events?.RevokeAll();
+            StickyWheelSession.RevokePluginCallbacks(PluginId, this, GenerationId);
         }
         catch (Exception ex)
         {
@@ -692,6 +724,8 @@ internal sealed class PluginInstance
     /// </summary>
     private void Teardown()
     {
+        // Initialize 异常也必须关闭注册事务，不能只把本实例字段置空。
+        _session?.Discard();
         // 配置服务是宿主对象，必须在卸载 ALC 前剪断它持有的插件回调。
         Settings.ClearSubscriptions();
 

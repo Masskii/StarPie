@@ -62,6 +62,7 @@ internal static class ArtStyleTests
         }
         RunRendererTests();
         RunStudioTests(args);
+        RunReviewRegressions();
         RunSharedMetricTests();
         if (args.Contains("--export-themes"))
         {
@@ -201,6 +202,98 @@ internal static class ArtStyleTests
         typeof(SettingsWindow).GetField("_isClosingForRelease",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(settings,true);
         settings.Close();
     }
+    private static void RunReviewRegressions()
+    {
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var actions = Enumerable.Range(0, 8).Select(i => new ActionItem { Name = "Review " + i, Parameter = "CTRL+C" }).ToList();
+        actions[0].SubActions = [new ActionItem { Name = "Review sub", Parameter = "CTRL+V" }];
+        var config = new AppConfig
+        {
+            SelectedArtStyleId = "obsidian", AutoCheckUpdate = false, EnableMultiTier = true,
+            Theme = "Light", UiStyle = "ClassicRing", WheelFontFamily = "Segoe UI",
+            SubWheelTheme = "Custom", SubWheelUiStyle = "FollowPrimary", UseIndependentSubWheelTheme = true,
+            SubWheelCustomSectorBg = "#FF123456", SubWheelCustomText = "#FFEEDDCC",
+            Profiles = [new WheelProfile { Actions = actions }]
+        };
+        SetConfig(config);
+        var settings = new SettingsWindow();
+        try
+        {
+            settings.SwitchToTab(1);
+            var render = typeof(SettingsWindow).GetMethod("RenderLiveWheelPreview", flags)!;
+            var previewBrush = typeof(SettingsWindow).GetField("_previewSubDefaultBrush", flags)!;
+            var expander = (Expander)settings.FindName("SubCustomColorExpander");
+            Check(expander.IsExpanded, "review starts with expanded independent custom palette");
+            render.Invoke(settings, null);
+            Check(Hex(previewBrush.GetValue(settings)) == "#FF123456", "independent custom secondary palette still takes priority");
+
+            var themeBox = (ComboBox)settings.FindName("SubWheelThemeComboBox");
+            themeBox.SelectedItem = themeBox.Items.OfType<ComboBoxItem>().First(item => item.Tag?.ToString() == "FollowPrimary");
+            Check(config.SubWheelTheme == "FollowPrimary" && !config.UseIndependentSubWheelTheme,
+                "custom-to-follow transition changes the real secondary configuration");
+            Check(expander.IsExpanded && config.SubWheelCustomSectorBg == "#FF123456",
+                "custom-to-follow retains the user's inactive palette");
+
+            foreach (var profile in ArtStyleCatalog.GetAll(new AppConfig()))
+            {
+                config.SelectedArtStyleId = profile.Id;
+                render.Invoke(settings, null);
+                var radial = new RadialWindow(new Point(400, 400), config.Profiles[0]);
+                try
+                {
+                    var actual = typeof(RadialWindow).GetField("_subDefaultSectorBrush", flags)!.GetValue(radial);
+                    Check(Hex(previewBrush.GetValue(settings)) == Hex(actual), "secondary preview matches real wheel after returning to follow " + profile.Id);
+                }
+                finally { radial.Close(); }
+
+                AppThemeManager.ApplyTheme(settings, config.AppTheme);
+                var slotText = (TextBlock)settings.FindName("FocusSlotBadgeText");
+                var slotFrame = (Border)settings.FindName("FocusSlotBadgeBorder");
+                var batchText = (TextBlock)settings.FindName("FocusBatchBadgeText");
+                var batchFrame = (Border)batchText.Parent;
+                Check(ArtStyleResolver.Contrast(Hex(slotText.Foreground), Hex(slotFrame.Background)) >= 4.5,
+                    "slot badge text is readable " + profile.Id);
+                Check(ArtStyleResolver.Contrast(Hex(batchText.Foreground), Hex(batchFrame.Background)) >= 4.5,
+                    "batch badge text is readable " + profile.Id);
+            }
+
+            config.SelectedArtStyleId = "pixel";
+            render.Invoke(settings, null);
+            settings.OnPreviewSectorClicked(0);
+            var fontBox = (ComboBox)settings.FindName("WheelFontFamilyComboBox");
+            string selectedFont() => (fontBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? fontBox.Text;
+            string pixelFont = ArtStyleCatalog.Find(config, "pixel")!.FontFamily;
+            Check(selectedFont() == pixelFont, "primary font editor inherits the art style");
+            settings.OnPreviewSubSectorClicked(0, 0);
+            Check(selectedFont() == pixelFont, "following secondary font editor inherits the art style");
+
+            config.SubWheelTheme = "Light";
+            config.UseIndependentSubWheelTheme = true;
+            render.Invoke(settings, null);
+            settings.OnPreviewSubSectorClicked(0, 0);
+            Check(selectedFont() == config.WheelFontFamily, "independent secondary font editor inherits the legacy global font");
+            var editingAction = (ActionItem)typeof(SettingsWindow).GetMethod("GetCurrentEditingAction", flags)!.Invoke(settings, null)!;
+            editingAction.CustomFontFamily = "Consolas, Cascadia Code";
+            settings.OnPreviewSubSectorClicked(0, 0);
+            Check(selectedFont() == "Consolas, Cascadia Code", "secondary action font override remains highest priority");
+
+            config.SelectedArtStyleId = "";
+            AppThemeManager.ApplyTheme(settings, config.AppTheme);
+            var soft = (System.Windows.Media.Effects.DropShadowEffect)settings.Resources["ChipShadowSoftEffect"];
+            var chip = (System.Windows.Media.Effects.DropShadowEffect)settings.Resources["ChipShadowEffect"];
+            Check(soft.BlurRadius == 8 && soft.ShadowDepth == 1 && soft.Opacity == .16 && soft.IsFrozen,
+                "leaving an art style restores the original soft chip shadow");
+            Check(chip.BlurRadius == 8 && chip.ShadowDepth == 1 && chip.Opacity == .12 && chip.IsFrozen,
+                "leaving an art style restores the original chip shadow");
+        }
+        finally
+        {
+            typeof(SettingsWindow).GetField("_isClosingForRelease", flags)!.SetValue(settings, true);
+            settings.Close();
+        }
+        static string Hex(object? brush) => ((SolidColorBrush)brush!).Color.ToString();
+    }
+
     private static void RenderStyles()
     {
         I18n.CurrentLanguage=LanguageCode.ZhCn;

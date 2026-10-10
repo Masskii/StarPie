@@ -264,23 +264,18 @@ internal sealed class ActionExecutionPathModule : PluginPathModule
     }
 }
 
-/// <summary>交互事件的只读信封。当前为宿主内部模型，不属于公共 SDK 契约。</summary>
-internal sealed class PluginInteractionEventEnvelope
-{
-    public string EventType { get; init; } = "";
-    public int SchemaVersion { get; init; } = 1;
-    public long SessionId { get; init; }
-    public long Sequence { get; init; }
-    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
-    public ActionContext Context { get; init; } = new();
-}
-
 /// <summary>
-/// 交互事件路径模块。旧版 Opening/Closed 订阅暂时由此托管；统一事件队列和背压行为后续补齐。
+/// 交互事件路径模块。保留旧版同步订阅，统一贡献使用每插件有界后台队列。
 /// </summary>
 internal sealed class InteractionEventPathModule : PluginPathModule
 {
     private readonly object _gate = new();
+    private readonly PluginCatalog _catalog;
+    private readonly int _queueCapacity;
+    private readonly Func<string, PluginInstance?> _findInteractionInstance;
+    private readonly Dictionary<string, PluginInteractionQueue> _queues = new(StringComparer.OrdinalIgnoreCase);
+    internal PluginInteractionQueue? FindQueue(string pluginId)
+    { lock (_gate) return _queues.GetValueOrDefault(pluginId); }
     private readonly PluginActivationCoordinator _activation;
     private readonly PluginCallCoordinator _calls;
     private readonly Dictionary<string, List<Action<ActionContext>>> _wheelOpeningHandlers =
@@ -289,9 +284,13 @@ internal sealed class InteractionEventPathModule : PluginPathModule
         new(StringComparer.OrdinalIgnoreCase);
 
     public InteractionEventPathModule(
-        PluginActivationCoordinator activation,
-        PluginCallCoordinator calls)
+        PluginCatalog catalog, PluginActivationCoordinator activation,
+        PluginCallCoordinator calls, int queueCapacity, Func<string, PluginInstance?> findInteractionInstance)
     {
+        _catalog = catalog;
+        if (queueCapacity < 1) throw new ArgumentOutOfRangeException(nameof(queueCapacity));
+        _queueCapacity = queueCapacity;
+        _findInteractionInstance = findInteractionInstance;
         _activation = activation ?? throw new ArgumentNullException(nameof(activation));
         _calls = calls ?? throw new ArgumentNullException(nameof(calls));
     }
@@ -385,21 +384,48 @@ internal sealed class InteractionEventPathModule : PluginPathModule
     }
 
     /// <summary>
-    /// 统一交互事件入口占位。返回实际投递数；当前尚未开放统一事件贡献，因此固定为 0。
+    /// 统一交互事件入口。返回成功入队的匹配贡献数，不等待回调完成。
     /// </summary>
-    public int Publish(PluginInteractionEventEnvelope interactionEvent)
+    public int Publish(InteractionEvent interactionEvent)
     {
         ArgumentNullException.ThrowIfNull(interactionEvent);
-        return 0;
+        if (!_activation.IsPluginSystemEnabled) return 0;
+        int accepted = 0;
+        foreach (var group in _catalog.SnapshotInteractions(interactionEvent.Kind))
+        {
+            int matches = group.RegisteredCount;
+            if (matches == 0 || !ReferenceEquals(_findInteractionInstance(group.Owner.PluginId), group.Owner) ||
+                !group.Owner.CanAcceptInteraction(group.Generation)) continue;
+            PluginInteractionQueue queue;
+            lock (_gate)
+            {
+                // 停用与这个锁内的最终检查组成入口屏障，旧实例不能在撤销后重新建队列。
+                if (!group.Owner.CanAcceptInteraction(group.Generation)) continue;
+                if (!_queues.TryGetValue(group.Owner.PluginId, out queue!) ||
+                    !ReferenceEquals(queue.Owner, group.Owner) || queue.Generation != group.Generation)
+                {
+                    queue?.Stop();
+                    var owner = group.Owner;
+                    queue = new PluginInteractionQueue(group, _calls, _queueCapacity,
+                        () => _activation.IsPluginSystemEnabled && ReferenceEquals(_findInteractionInstance(owner.PluginId), owner));
+                    _queues[group.Owner.PluginId] = queue;
+                }
+                if (queue.Enqueue(interactionEvent, group)) accepted += matches;
+            }
+        }
+        return accepted;
     }
 
     public override void OnPluginStopping(string pluginId)
     {
+        PluginInteractionQueue? queue;
         lock (_gate)
         {
             _wheelOpeningHandlers.Remove(pluginId);
             _wheelClosedHandlers.Remove(pluginId);
+            _queues.Remove(pluginId, out queue);
         }
+        queue?.Stop();
     }
 
     private void RemoveWheelOpening(string pluginId, Action<ActionContext> handler)

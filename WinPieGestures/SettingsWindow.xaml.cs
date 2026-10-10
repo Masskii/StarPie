@@ -1331,7 +1331,20 @@ public partial class SettingsWindow : Window
 		}
 		UpdateSubColorPreviews();
 
-		// Center Core Icon
+		// Center Core Circle & Icon
+		if (ShowCoreCircleCheckBox != null)
+		{
+			ShowCoreCircleCheckBox.IsChecked = ConfigManager.CurrentConfig.ShowCoreCircle;
+		}
+		if (CoreDetailsPanel != null)
+		{
+			CoreDetailsPanel.IsEnabled = ConfigManager.CurrentConfig.ShowCoreCircle;
+			CoreDetailsPanel.Opacity = ConfigManager.CurrentConfig.ShowCoreCircle ? 1.0 : 0.5;
+		}
+		if (CoreRadiusSlider != null)
+		{
+			CoreRadiusSlider.IsEnabled = ConfigManager.CurrentConfig.ShowCoreCircle;
+		}
 		ShowCoreIconCheckBox.IsChecked = ConfigManager.CurrentConfig.ShowCoreIcon;
 		if (CoreIconConfigPanel != null)
 		{
@@ -2748,6 +2761,14 @@ public partial class SettingsWindow : Window
 		{
 			CoreSectionTitle.Text = I18n.T("CoreSectionTitle");
 		}
+		if (ShowCoreCircleCheckBox != null)
+		{
+			ShowCoreCircleCheckBox.Content = I18n.T("ShowCoreCircleTitle");
+		}
+		if (ShowCoreCircleDescText != null)
+		{
+			ShowCoreCircleDescText.Text = I18n.T("ShowCoreCircleDesc");
+		}
 		if (ShowCoreIconCheckBox != null)
 		{
 			ShowCoreIconCheckBox.Content = I18n.T("ShowCoreIcon");
@@ -3275,6 +3296,8 @@ public partial class SettingsWindow : Window
 		if (Tab1_TextOffsetXLabel != null) Tab1_TextOffsetXLabel.Text = I18n.T("Tab1_TextOffsetXLabel");
 		if (Tab1_TextOffsetYLabel != null) Tab1_TextOffsetYLabel.Text = I18n.T("Tab1_TextOffsetYLabel");
 		if (CoreSectionTitle != null) CoreSectionTitle.Text = I18n.T("CoreSectionTitle");
+		if (ShowCoreCircleCheckBox != null) ShowCoreCircleCheckBox.Content = I18n.T("ShowCoreCircleTitle");
+		if (ShowCoreCircleDescText != null) ShowCoreCircleDescText.Text = I18n.T("ShowCoreCircleDesc");
 		if (ShowCoreIconCheckBox != null) ShowCoreIconCheckBox.Content = I18n.T("ShowCoreIconTitle");
 		if (Tab1_CorePatternTypeLabel != null) Tab1_CorePatternTypeLabel.Text = I18n.T("Tab1_CorePatternTypeLabel");
 		if (CoreIconExitItem != null) CoreIconExitItem.Content = I18n.T("CorePatternExit");
@@ -4013,6 +4036,10 @@ public partial class SettingsWindow : Window
 			if (ShowSelectedActionTextCheckBox != null)
 			{
 				ConfigManager.CurrentConfig.ShowSelectedActionText = ShowSelectedActionTextCheckBox.IsChecked == true;
+			}
+			if (ShowCoreCircleCheckBox != null)
+			{
+				ConfigManager.CurrentConfig.ShowCoreCircle = ShowCoreCircleCheckBox.IsChecked == true;
 			}
 			if (ShowCoreIconCheckBox != null)
 			{
@@ -9583,7 +9610,8 @@ public partial class SettingsWindow : Window
 				Height = coreR * 2.0,
 				RenderTransformOrigin = new Point(0.5, 0.5),
 				Cursor = System.Windows.Input.Cursors.Hand,
-				IsHitTestVisible = false
+				IsHitTestVisible = false,
+				Visibility = AppConfig.GetCoreCircleVisibility(ConfigManager.CurrentConfig.ShowCoreCircle)
 			};
 			bool isCenterSelected = (_selectedSlotIndex == -1);
 
@@ -13933,7 +13961,8 @@ public partial class SettingsWindow : Window
 				PopulateLayoutModeComboBox(includeInherit: true);
 				string currentMode = ((action != null && !string.IsNullOrWhiteSpace(action.LayoutMode)) ? action.LayoutMode : "Inherit");
 				SetComboBoxSelectedValue(IconLayoutModeComboBox, currentMode);
-				string currentFont = ((action != null && !string.IsNullOrWhiteSpace(action.CustomFontFamily)) ? action.CustomFontFamily : ArtStyles.ArtStyleRenderer.ResolveFont(_previewStyleRenderer, ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI"));
+				IRadialStyleRenderer? editingRenderer = _selectedLayoutTier == 2 ? _previewSubStyleRenderer : _previewStyleRenderer;
+				string currentFont = ((action != null && !string.IsNullOrWhiteSpace(action.CustomFontFamily)) ? action.CustomFontFamily : ArtStyles.ArtStyleRenderer.ResolveFont(editingRenderer, ConfigManager.CurrentConfig.WheelFontFamily ?? "Microsoft YaHei UI, Segoe UI"));
 				SetComboBoxSelectedValue(WheelFontFamilyComboBox, currentFont);
 				if (SectorTextColorTextBox != null)
 				{
@@ -15406,6 +15435,32 @@ public partial class SettingsWindow : Window
 			ConfigManager.CurrentConfig.VolumeFlickCancelDistance = num;
 			VolumeFlickJumpValueText.Text = $"{num:0} px";
 			ScheduleAutoSave();
+		}
+	}
+
+	private void ShowCoreCircleCheckBox_Changed(object sender, RoutedEventArgs e)
+	{
+		bool isVisible = ShowCoreCircleCheckBox?.IsChecked == true;
+		if (CoreDetailsPanel != null)
+		{
+			CoreDetailsPanel.IsEnabled = isVisible;
+			CoreDetailsPanel.Opacity = isVisible ? 1.0 : 0.5;
+		}
+		if (CoreRadiusSlider != null)
+		{
+			CoreRadiusSlider.IsEnabled = isVisible;
+		}
+		if (!_isUpdatingUi && ConfigManager.CurrentConfig != null)
+		{
+			ConfigManager.CurrentConfig.ShowCoreCircle = isVisible;
+			ConfigManager.MarkConfigurationChanged();
+			Grid appearanceSettingsGrid = AppearanceSettingsGrid;
+			if (appearanceSettingsGrid != null && appearanceSettingsGrid.Visibility == Visibility.Visible)
+			{
+				RenderLiveWheelPreview();
+			}
+			RenderMappingsWheelPreview();
+			SyncUiToConfigAndSave();
 		}
 	}
 
@@ -18260,7 +18315,7 @@ public partial class SettingsWindow : Window
 				_previewSubHighlightBorderBrush = _previewHighlightBorderBrush;
 				_previewSubTextBrush = _previewTextBrush;
 			}
-			if (SubCustomColorExpander != null && SubCustomColorExpander.IsExpanded)
+			if (_previewSubStyleRenderer is not ArtStyles.ArtStyleRenderer && SubCustomColorExpander != null && SubCustomColorExpander.IsExpanded)
 			{
 				try
 				{
@@ -18293,7 +18348,8 @@ public partial class SettingsWindow : Window
 			{
 				Width = num10 * 2.0,
 				Height = num10 * 2.0,
-				RenderTransformOrigin = new Point(0.5, 0.5)
+				RenderTransformOrigin = new Point(0.5, 0.5),
+				Visibility = AppConfig.GetCoreCircleVisibility(ConfigManager.CurrentConfig.ShowCoreCircle)
 			};
 			_previewCoreScale = new ScaleTransform(1.0, 1.0);
 			grid.RenderTransform = _previewCoreScale;
@@ -19586,7 +19642,9 @@ public partial class SettingsWindow : Window
 
 	private void UpdatePreviewCoreSelection(int mainIndex, int subIndex, WheelProfile? wheelProfile)
 	{
-		bool shouldShow = ConfigManager.CurrentConfig?.ShowSelectedActionText == true && mainIndex >= 0 && wheelProfile != null;
+		bool shouldShow = AppConfig.ShouldShowCoreSelectionText(
+			ConfigManager.CurrentConfig?.ShowCoreCircle ?? true,
+			ConfigManager.CurrentConfig?.ShowSelectedActionText ?? true) && mainIndex >= 0 && wheelProfile != null;
 		string selectedName = string.Empty;
 		if (shouldShow && wheelProfile!.Actions != null && mainIndex < wheelProfile.Actions.Count)
 		{

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using StarPie.Plugin;
 
 namespace WinPieGestures.Plugins;
 
@@ -58,6 +59,27 @@ internal static class StickyWheelSession
     private static RadialWindow? _cachedWheel;
     private static StickyWheelBackdrop? _cachedBackdrop;
 
+    private static readonly List<Session> _activeTrackedSessions = new();
+
+    private static void RegisterSession(Session session)
+    {
+        lock (Gate)
+        {
+            if (!_activeTrackedSessions.Contains(session))
+            {
+                _activeTrackedSessions.Add(session);
+            }
+        }
+    }
+
+    private static void UnregisterSession(Session session)
+    {
+        lock (Gate)
+        {
+            _activeTrackedSessions.Remove(session);
+        }
+    }
+
     /// <summary>
     /// 是否已有粘滞会话（含「已受理、还在排队上屏」的窗口期）。
     /// <para>
@@ -83,27 +105,70 @@ internal static class StickyWheelSession
     /// 返回 <c>true</c> 只表示「已受理并排队」，语义与 <c>ActivateTaskbarSlot</c> 的
     /// 「宿主已受理」同一条纪律。
     /// </summary>
-    internal static bool Show(string pluginId, double physicalX, double physicalY)
+    internal static bool Show(string pluginId, double physicalX, double physicalY) =>
+        RequestTracked(pluginId, physicalX, physicalY, null, null) != null;
+
+    /// <summary>
+    /// 受理一次带状态与选中追踪的轮盘呼出（SDK 1.9 IHostWheelSessionService）。
+    /// </summary>
+    internal static IDisposable? RequestTracked(
+        string pluginId,
+        double physicalX,
+        double physicalY,
+        Action<WheelSessionStateChangedEventArgs>? onStateChanged,
+        Action<WheelSelectionChangedEventArgs>? onSelectionChanged,
+        PluginInstance? ownerInstance = null,
+        long ownerGeneration = 0)
     {
         // 无界面自检模式一触即回：这里排在一切副作用之前，保证 [3j] 的
         // 「声明后放行」探针调得动、又绝不弹窗。
-        if (PluginHost.HeadlessMode) return false;
-        if (!double.IsFinite(physicalX) || !double.IsFinite(physicalY)) return false;
+        if (PluginHost.HeadlessMode) return null;
+        if (!double.IsFinite(physicalX) || !double.IsFinite(physicalY)) return null;
+
+        // 绑定原调用者并校验代际
+        PluginInstance? instance = ownerInstance ?? PluginHost.Find(pluginId);
+        if (instance == null) return null;
+        if (!ReferenceEquals(PluginHost.Find(pluginId), instance)) return null;
+        if (ownerGeneration != 0 && instance.GenerationId != ownerGeneration) return null;
+
+        // 停止开始后拒绝新的订阅与回调，不重新启用/激活插件。
+        if (instance.State is PluginRuntimeState.Stopping or PluginRuntimeState.RequiresRestart
+            or PluginRuntimeState.Quarantined or PluginRuntimeState.Failed or PluginRuntimeState.Incompatible)
+        {
+            return null;
+        }
 
         Application? app = Application.Current;
-        if (app == null) return false;
+        if (app == null) return null;
 
         GestureController? controller = App.MainGestureController;
-        if (controller == null || controller.IsGestureActive) return false;
+        if (controller == null || controller.IsGestureActive) return null;
 
-        if (!IsWithinVirtualScreen(physicalX, physicalY)) return false;
+        if (!IsWithinVirtualScreen(physicalX, physicalY)) return null;
 
+        Session? previous;
         Session session;
         lock (Gate)
         {
-            session = new Session(pluginId, new Point(physicalX, physicalY), ++_versionCounter, _current);
+            previous = _current;
+            session = new Session(
+                pluginId,
+                new Point(physicalX, physicalY),
+                ++_versionCounter,
+                previous,
+                onStateChanged,
+                onSelectionChanged,
+                instance,
+                instance.GenerationId);
             _current = session;
         }
+
+        if (previous != null)
+        {
+            previous.PostState(WheelSessionState.Superseded, "Superseded by new session");
+        }
+
+        session.PostState(WheelSessionState.Requested, "Requested");
 
         try
         {
@@ -116,10 +181,12 @@ internal static class StickyWheelSession
             {
                 if (ReferenceEquals(_current, session)) _current = null;
             }
+            session.PostState(WheelSessionState.Rejected, ex.Message);
+            session.Interaction.End("PresentationFailed");
             AppLogger.LogWarn($"[plugin] 粘滞轮盘排队失败：{ex.Message}");
-            return false;
+            return null;
         }
-        return true;
+        return new SessionTrackerToken(session);
     }
 
     /// <summary>
@@ -127,43 +194,103 @@ internal static class StickyWheelSession
     /// </summary>
     internal static bool Dismiss(string pluginId)
     {
-        Session? session;
+        Session? session = ReserveDismissal(pluginId);
+        if (session == null) return false;
+        FinishDismissal(session);
+        return true;
+    }
+
+    // 原子拆下当前会话并冻结结束原因；完成发布与 UI 清理可以在锁外延后。
+    internal static Session? ReserveDismissal(string pluginId)
+    {
         lock (Gate)
         {
-            session = _current;
-            if (session == null || !string.Equals(session.PluginId, pluginId, StringComparison.Ordinal))
-            {
-                return false;
-            }
+            Session? session = _current;
+            if (session == null || !string.Equals(session.PluginId, pluginId, StringComparison.Ordinal)) return null;
+            session.Interaction.FreezeEnd("DismissedByPlugin");
             _current = null;
+            return session;
         }
+    }
 
+    private static void FinishDismissal(Session session)
+    {
+        session.Interaction.End("DismissedByPlugin");
+        session.PostState(WheelSessionState.Closed, "DismissedByPlugin");
         try
         {
-            Application.Current?.Dispatcher.BeginInvoke(new Action(() => CloseUi(session)));
+            Application.Current?.Dispatcher.BeginInvoke(new Action(() => CloseUi(session, "DismissedByPlugin")));
         }
         catch (Exception ex)
         {
             AppLogger.LogWarn($"[plugin] 粘滞轮盘收摊排队失败：{ex.Message}");
         }
-        return true;
+    }
+    /// <summary>
+    /// 插件停用时兜底断开会话回调，避免闭包泄漏阻止 ALC 卸载。
+    /// 撤销该插件/代际的所有会话（包括当前会话、旧会话、尚未呈现及已排队会话）。
+    /// </summary>
+    internal static void RevokePluginCallbacks(string pluginId, PluginInstance? instance = null, long generation = 0)
+    {
+        List<Session> toDetach = new();
+        lock (Gate)
+        {
+            for (int i = _activeTrackedSessions.Count - 1; i >= 0; i--)
+            {
+                Session s = _activeTrackedSessions[i];
+                if (!string.Equals(s.PluginId, pluginId, StringComparison.Ordinal))
+                    continue;
+
+                if (instance != null && s.OwnerInstance != null && !ReferenceEquals(s.OwnerInstance, instance))
+                    continue;
+
+                if (generation != 0 && s.OwnerGeneration != 0 && s.OwnerGeneration != generation)
+                    continue;
+
+                _activeTrackedSessions.RemoveAt(i);
+                toDetach.Add(s);
+            }
+
+            if (_current != null && string.Equals(_current.PluginId, pluginId, StringComparison.Ordinal))
+            {
+                bool matchesInstance = instance == null || _current.OwnerInstance == null || ReferenceEquals(_current.OwnerInstance, instance);
+                bool matchesGeneration = generation == 0 || _current.OwnerGeneration == 0 || _current.OwnerGeneration == generation;
+                if (matchesInstance && matchesGeneration && !toDetach.Contains(_current))
+                {
+                    toDetach.Add(_current);
+                }
+            }
+        }
+
+        foreach (Session s in toDetach)
+        {
+            s.DetachCallbacks();
+        }
     }
 
     // ---- 以下全部在 UI 线程执行（Present 经 BeginInvoke、遮罩事件天然在 UI 线程） ----
 
     private static void Present(Session session)
     {
+        bool isCurrent;
         lock (Gate)
         {
             // 受理后被更新的会话替换、或被 Dismiss 撤回 —— 直接放弃，别把没收的摊铺开。
-            if (!ReferenceEquals(_current, session)) return;
+            isCurrent = ReferenceEquals(_current, session);
+        }
+
+        if (!isCurrent)
+        {
+            session.PostState(WheelSessionState.Superseded, "Superseded before presentation");
+            session.Interaction.End("SupersededBeforePresentation");
+            return;
         }
 
         try
         {
             if (session.Replaces != null)
             {
-                CloseUi(session.Replaces);
+                CloseUi(session.Replaces, "ReplacedByNewSession");
             }
 
             WheelProfile profile = ConfigManager.GetProfileForProcess(ActiveWindowHelper.GetActiveWindowProcessName());
@@ -171,6 +298,7 @@ internal static class StickyWheelSession
             profile.ActiveLayerIndex = 0;
             profile.SyncRootPropertiesFromActiveLayer();
             session.Profile = profile;
+            session.Interaction.BindProfile(profile.ProcessName);
 
             // 与 ShowRadialUI 相同的顺序：遮罩先上屏，轮盘在其后进入最上层带，
             // 视觉上轮盘压住遮罩；轮盘 HWND 显式穿透鼠标，命中由遮罩收。
@@ -180,7 +308,7 @@ internal static class StickyWheelSession
 
             RadialWindow wheel = _cachedWheel ??= new RadialWindow(session.Center, profile);
             session.Wheel = wheel;
-            wheel.Present(session.Center, profile, ConfigManager.ConfigurationRevision, session.Version);
+            wheel.Present(session.Center, profile, ConfigManager.ConfigurationRevision, session.Version, session.Interaction.Presented);
             // Present 可能把靠边的轮盘钳进工作区；命中必须以真正画出来的中心为准。
             session.HitCenter = wheel.ActualPhysicalCenter;
             (session.DpiX, session.DpiY) = RadialWindow.GetMonitorDpiScale(session.HitCenter);
@@ -193,6 +321,9 @@ internal static class StickyWheelSession
             session.SoundSessionId = SoundEffectManager.BeginSession(SoundSessionSource.StickyWheel);
             SoundEffectManager.Play(SoundType.WheelPopup, SoundSessionSource.StickyWheel, session.SoundSessionId);
 
+            // 触发呈现完成通知 (状态机进入 Presented)
+            session.PostState(WheelSessionState.Presented, "Presented");
+
             // 光标可能已经停在某个扇区上（比如球就压在轮盘边缘位置），立刻补一次高亮。
             HandlePointer();
         }
@@ -203,7 +334,9 @@ internal static class StickyWheelSession
             {
                 if (ReferenceEquals(_current, session)) _current = null;
             }
-            CloseUi(session);
+            session.PostState(WheelSessionState.Rejected, ex.Message);
+            session.Interaction.End("PresentationFailed");
+            CloseUi(session, "PresentationFailed");
         }
     }
 
@@ -230,6 +363,8 @@ internal static class StickyWheelSession
         session.LastSub = hit.Sub;
         session.LastShowSub = hit.ShowSub;
         session.LastEscaped = hit.Escaped;
+
+        session.Interaction?.Update(hit.Sector, hit.Sub, hit.ShowSub, hit.Escaped);
 
         // 音效与 QueueHighlightUpdate 同一组转移规则，反馈语汇保持一致。
         if (!prevEscaped && hit.Escaped)
@@ -308,6 +443,30 @@ internal static class StickyWheelSession
         {
             AppLogger.LogWarn($"[plugin] 粘滞轮盘高亮更新失败：{ex.Message}");
         }
+
+        // 仅在宿主实际应用该帧高亮后交付最新Selection；帧合并只交付最新应用结果
+        int sectorCount = session.Profile?.SectorCount ?? 8;
+        if (sectorCount <= 0) sectorCount = 8;
+
+        bool isEmpty = session.PendingEscaped || session.PendingSector < 0;
+        double angle = isEmpty
+            ? double.NaN
+            : ((session.PendingSector * (360.0 / sectorCount)) % 360.0 + 360.0) % 360.0;
+
+        var args = new WheelSelectionChangedEventArgs
+        {
+            SessionId = session.SessionId,
+            PhysicalCenterX = session.HitCenter.X,
+            PhysicalCenterY = session.HitCenter.Y,
+            IsEmptySelection = isEmpty,
+            MenuDepth = (session.PendingShowSub && session.PendingSub >= 0) ? 1 : 0,
+            AngleDegrees = angle,
+            SectorIndex = isEmpty ? -1 : session.PendingSector,
+            SubSectorIndex = (session.PendingShowSub && session.PendingSub >= 0) ? session.PendingSub : -1,
+            TotalSectors = sectorCount
+        };
+
+        session.NotifySelection(args);
     }
 
     /// <summary>遮罩收到按下。<paramref name="leftButton"/> 为 false 时一律按取消处理。</summary>
@@ -324,10 +483,13 @@ internal static class StickyWheelSession
         {
             if (ReferenceEquals(_current, session)) _current = null;
         }
-        CloseUi(session);
+        string reason = (!leftButton || hit.Escaped) ? "Cancelled" : "ActionExecuted";
+        CloseUi(session, reason, completeInteraction: false);
+        using var interactionCompletion = session.Interaction;
 
         if (!leftButton || hit.Escaped)
         {
+            session.Interaction?.Cancel(hit.Escaped ? "Escaped" : "Cancelled");
             if (hit.Escaped)
             {
                 DispatchCancelAction();
@@ -342,9 +504,11 @@ internal static class StickyWheelSession
                 : session.Profile?.GetEffectiveAction(hit.Sector, hit.Sub);
             if (target != null)
             {
+                session.Interaction?.Confirm(target, PluginInteractionSession.Target(hit.Sector, hit.Sub));
                 SoundEffectManager.Play(SoundType.ActionExecute, SoundSessionSource.StickyWheel, session.SoundSessionId);
                 ActionExecutor.EnqueueAction(target);
             }
+            else session.Interaction?.Cancel("NoAction");
         }
         catch (Exception ex)
         {
@@ -352,9 +516,14 @@ internal static class StickyWheelSession
         }
     }
 
-    private static void CloseUi(Session session)
+    private static void CloseUi(Session session, string reason = "Closed", bool completeInteraction = true)
     {
-        session.Live = false;
+        if (completeInteraction) session.Interaction?.End(reason);
+        if (session.Live)
+        {
+            session.Live = false;
+            session.PostState(WheelSessionState.Closed, reason);
+        }
         SoundEffectManager.EndSession(SoundSessionSource.StickyWheel, session.SoundSessionId, allowTerminalFeedback: true);
         try
         {
@@ -596,20 +765,43 @@ internal static class StickyWheelSession
     /// <summary>一次会话的全部状态。除构造参数外只在 UI 线程读写。internal 是给遮罩窗绑回调用的。</summary>
     internal sealed class Session
     {
-        public Session(string pluginId, Point center, long version, Session? replaces)
+        public Session(
+            string pluginId,
+            Point center,
+            long version,
+            Session? replaces,
+            Action<WheelSessionStateChangedEventArgs>? onStateChanged = null,
+            Action<WheelSelectionChangedEventArgs>? onSelectionChanged = null,
+            PluginInstance? ownerInstance = null,
+            long ownerGeneration = 0)
         {
             PluginId = pluginId;
             Center = center;
             HitCenter = center;
             Version = version;
             Replaces = replaces;
+            SessionId = $"wheel-sess-{version}-{Guid.NewGuid():N}";
+            Interaction = new PluginInteractionSession(InteractionSource.StickyWheel, "");
+            _onStateChanged = onStateChanged;
+            _onSelectionChanged = onSelectionChanged;
+
+            OwnerInstance = ownerInstance ?? PluginHost.Find(pluginId);
+            OwnerGeneration = ownerGeneration != 0 ? ownerGeneration : (OwnerInstance?.GenerationId ?? 0);
+
+            if (_onStateChanged != null || _onSelectionChanged != null)
+            {
+                RegisterSession(this);
+            }
         }
 
         public string PluginId { get; }
+        public string SessionId { get; }
         public Point Center { get; }
         public Point HitCenter { get; set; }
         public long Version { get; }
         public Session? Replaces { get; }
+        public PluginInstance? OwnerInstance { get; }
+        public long OwnerGeneration { get; }
 
         public WheelProfile? Profile { get; set; }
         public RadialWindow? Wheel { get; set; }
@@ -617,6 +809,7 @@ internal static class StickyWheelSession
         public double DpiY { get; set; } = 1.0;
         public bool Live { get; set; }
         public long SoundSessionId { get; set; }
+        internal PluginInteractionSession Interaction { get; }
         public bool BackdropBound { get; set; }
 
         public bool HighlightScheduled { get; set; }
@@ -629,6 +822,207 @@ internal static class StickyWheelSession
         public int LastSub { get; set; } = -2;
         public bool LastShowSub { get; set; }
         public bool LastEscaped { get; set; }
+
+        private readonly object _callbackGate = new();
+        private readonly object _stateGate = new();
+        private Action<WheelSessionStateChangedEventArgs>? _onStateChanged;
+        private Action<WheelSelectionChangedEventArgs>? _onSelectionChanged;
+        private bool _isDisposed;
+        private bool _hasTerminated;
+
+        public void DetachCallbacks()
+        {
+            lock (_callbackGate)
+            {
+                _isDisposed = true;
+                _onStateChanged = null;
+                _onSelectionChanged = null;
+            }
+            UnregisterSession(this);
+        }
+
+        public void PostState(WheelSessionState state, string? reason = null)
+        {
+            lock (_stateGate)
+            {
+                if (_hasTerminated) return;
+                if (state is WheelSessionState.Closed or WheelSessionState.Rejected or WheelSessionState.Superseded)
+                {
+                    _hasTerminated = true;
+                }
+            }
+
+            Application? app = Application.Current;
+            if (app != null)
+            {
+                try
+                {
+                    app.Dispatcher.BeginInvoke(new Action(() => DeliverState(state, reason)));
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.LogWarn($"[plugin:{PluginId}] 轮盘会话状态投递排队失败: {ex.Message}");
+                    DetachCallbacks();
+                }
+                return;
+            }
+
+            DeliverState(state, reason);
+        }
+
+        public void NotifyState(WheelSessionState state, string? reason = null) => PostState(state, reason);
+
+        public void DeliverState(WheelSessionState state, string? reason)
+        {
+            Action<WheelSessionStateChangedEventArgs>? handler;
+            lock (_callbackGate)
+            {
+                if (_isDisposed) return;
+                handler = _onStateChanged;
+            }
+
+            if (handler == null) return;
+
+            PluginInstance? owner = OwnerInstance;
+            if (owner == null)
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            PluginInstance? currentRegistered = PluginHost.Find(PluginId);
+            if (!ReferenceEquals(owner, currentRegistered) || owner.GenerationId != OwnerGeneration)
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            if (!owner.TryAcquireInvocation(PluginCallKind.InteractionEvent, out PluginInvocationLease? lease, out _))
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            try
+            {
+                using (lease)
+                {
+                    lock (_callbackGate)
+                    {
+                        if (_isDisposed) return;
+                    }
+
+                    handler(new WheelSessionStateChangedEventArgs
+                    {
+                        SessionId = SessionId,
+                        State = state,
+                        Reason = reason
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.LogError($"[plugin:{PluginId}] 轮盘会话状态回调异常: {ex.Message}", ex);
+            }
+            finally
+            {
+                if (state is WheelSessionState.Closed or WheelSessionState.Rejected or WheelSessionState.Superseded)
+                {
+                    DetachCallbacks();
+                }
+            }
+        }
+
+        public void NotifySelection(WheelSelectionChangedEventArgs args)
+        {
+            Application? app = Application.Current;
+            if (app != null)
+            {
+                if (app.Dispatcher.CheckAccess())
+                {
+                    DeliverSelection(args);
+                }
+                else
+                {
+                    try
+                    {
+                        app.Dispatcher.BeginInvoke(new Action(() => DeliverSelection(args)));
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.LogWarn($"[plugin:{PluginId}] 轮盘会话选中投递排队失败: {ex.Message}");
+                        DetachCallbacks();
+                    }
+                }
+                return;
+            }
+
+            DeliverSelection(args);
+        }
+
+        public void DeliverSelection(WheelSelectionChangedEventArgs args)
+        {
+            Action<WheelSelectionChangedEventArgs>? handler;
+            lock (_callbackGate)
+            {
+                if (_isDisposed || _hasTerminated) return;
+                handler = _onSelectionChanged;
+            }
+
+            if (handler == null) return;
+
+            PluginInstance? owner = OwnerInstance;
+            if (owner == null)
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            PluginInstance? currentRegistered = PluginHost.Find(PluginId);
+            if (!ReferenceEquals(owner, currentRegistered) || owner.GenerationId != OwnerGeneration)
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            if (!owner.TryAcquireInvocation(PluginCallKind.InteractionEvent, out PluginInvocationLease? lease, out _))
+            {
+                DetachCallbacks();
+                return;
+            }
+
+            try
+            {
+                using (lease)
+                {
+                    lock (_callbackGate)
+                    {
+                        if (_isDisposed || _hasTerminated) return;
+                    }
+
+                    handler(args);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.LogError($"[plugin:{PluginId}] 轮盘会话选中回调异常: {ex.Message}", ex);
+            }
+        }
+    }
+
+    private sealed class SessionTrackerToken : IDisposable
+    {
+        private readonly Session _session;
+        private bool _disposed;
+
+        public SessionTrackerToken(Session session) => _session = session;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _session.DetachCallbacks();
+        }
     }
 }
 

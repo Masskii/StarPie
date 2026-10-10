@@ -1240,6 +1240,8 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("Tab1_TextOffsetXLabel", "水平 X:", "水平 X:", "Horizontal X:", "水平 X:");
 		Add("Tab1_TextOffsetYLabel", "垂直 Y:", "垂直 Y:", "Vertical Y:", "垂直 Y:");
 		Add("CoreSectionTitle", "中心核心圆与图案文字设置", "中心核心圓與圖案文字設定", "Center Core Circle & Pattern/Text Settings", "センターコア＆パターン・テキスト設定");
+		Add("ShowCoreCircleTitle", "显示中心核心圆", "顯示中心核心圓", "Show Center Core Circle", "センターコアを表示");
+		Add("ShowCoreCircleDesc", "开启后在轮盘中心显示核心圆底色、边框与图案文字；关闭后隐藏中心圆视觉元素，但依然保留中心死区防抖与中心动作判定。", "開啟後在輪盤中心顯示核心圓底色、邊框與圖案文字；關閉後隱藏中心圓視覺元素，但依然保留中心死區防抖與中心動作判定。", "When enabled, renders the center core circle, border, and pattern/text. When disabled, visually hides the core while preserving deadzone protection and center action hit testing.", "有効にするとホイール中央にコア円、境界線、パターン/テキストを表示します。無効にすると外観は非表示になりますが、デッドゾーンと中央アクションの判定は保持されます。");
 		Add("ShowCoreIconTitle", "启用中心图案/图标显示", "啟用中心圖案/圖示顯示", "Enable Center Pattern/Icon Display", "センターパターン/アイコン表示を有効化");
 		Add("Tab1_CorePatternTypeLabel", "图案类型:", "圖案類型:", "Pattern Type:", "パターンタイプ:");
 		Add("CoreIconTypeItemCrosshair", "精准十字准星", "精準十字準星", "Precision Crosshair", "高精度クロスヘア");
@@ -2315,6 +2317,14 @@ Add("AboutCheckUpdate", "🔄 检查更新", "🔄 檢查更新", "🔄 Check fo
 		Add("PluginsOnboardingBannerText", "尚有 {0} 项官方核心插件未安装。安装后可使用打开文件夹、启动程序、网页跳转、系统控制等常用内置动作。", "尚有 {0} 項官方核心外掛未安裝。安裝後可使用開啟資料夾、啟動程式、網頁跳轉、系統控制等常用內建動作。", "{0} official core plugin(s) are not installed. Install them to use commonly used built-in actions like Open Folder, Launch App, Web URL, and System Control.", "公式コアプラグインが {0} 件未導入です。インストールするとフォルダーを開く、アプリ起動、Web ページ、システム制御などの機能が使用可能になります。");
 		Add("PluginsOnboardingBannerButton", "⬇️ 一键安装缺失项", "⬇️ 一鍵安裝缺失項", "⬇️ Install Missing Plugins", "⬇️ 不足プラグインを一括導入");
 		Add("PluginsOnboardingOpenDialogFailed", "无法打开官方插件安装引导窗口：{0}", "無法開啟官方外掛安裝引導視窗：{0}", "Failed to open official plugins onboarding dialog: {0}", "公式プラグインの導入ガイドウィンドウを開けませんでした: {0}");
+		Add("OfficialPluginsOnboardingChannelLabel", "下载通道：", "下載通道：", "Download Channel:", "ダウンロードチャンネル：");
+		Add("OfficialPluginsOnboardingChannelHint", "若直连 GitHub 访问受限或失败，可切换上方加速镜像通道", "若直連 GitHub 存取受限或失敗，可切換上方加速鏡像通道", "If direct connection to GitHub is slow or blocked, switch to a mirror channel", "GitHub への直接接続が制限されるか失敗する場合は、上のミラーチャンネルに切り替えてください");
+		Add("OfficialPluginsOnboardingNetworkFailedWithChannelGuidance", "插件「{0}」网络下载失败（当前通道：{1}）：{2}。可尝试切换上方下载通道后重试未完成项。", "外掛「{0}」網路下載失敗（目前通道：{1}）：{2}。可嘗試切換上方下載通道後重試未完成項。", "Plugin \"{0}\" network download failed (current channel: {1}): {2}. Try switching the download channel above and retry incomplete items.", "プラグイン「{0}」のネットワークダウンロードに失敗しました（現在のチャンネル：{1}）：{2}。上のダウンロードチャンネルを切り替えて未完了項目を再試行してください。");
+		Add("OfficialPluginsOnboardingCatalogNetworkError", "获取官方插件目录网络失败（当前通道：{0}）：{1}。可切换上方下载通道后重试。", "取得官方外掛目錄網路失敗（目前通道：{0}）：{1}。可切換上方下載通道後重試。", "Failed to fetch official plugin catalog over network (channel: {0}): {1}. Try switching the download channel above and retry.", "公式プラグインカタログの取得に失敗しました（チャンネル：{0}）：{1}。上のダウンロードチャンネルを切り替えて再試行してください。");
+		Add("OfficialPluginTimeoutCatalog", "获取 module-catalog.json 网络超时。", "取得 module-catalog.json 網路逾時。", "Network timed out while fetching module-catalog.json.", "module-catalog.json の取得がタイムアウトしました。");
+		Add("OfficialPluginTimeoutAtom", "获取 releases.atom 网络超时。", "取得 releases.atom 網路逾時。", "Network timed out while fetching releases.atom.", "releases.atom の取得がタイムアウトしました。");
+		Add("OfficialPluginTimeoutPackage", "下载插件包网络超时。", "下載外掛包網路逾時。", "Network timed out while downloading plugin package.", "プラグインパッケージのダウンロードがタイムアウトしました。");
+		Add("OfficialPluginTimeoutDiscovery", "获取官方发布列表网络超时。", "取得官方發布清單網路逾時。", "Network timed out while discovering official releases.", "公式リリース一覧の取得がタイムアウトしました。");
 
 		// --- R7 文件选择与独占录制提示四语言本地化 (F4) ---
 		Add("FileDialogFilterExecutable", "应用程序 (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|所有文件 (*.*)|*.*", "應用程式 (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|所有檔案 (*.*)|*.*", "Applications (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|All Files (*.*)|*.*", "実行可能ファイル (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|すべてのファイル (*.*)|*.*");

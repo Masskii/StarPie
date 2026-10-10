@@ -534,80 +534,8 @@ public static class ActionExecutor
 
 	public static bool TryToggleProcessWindow(string processOrExePath)
 	{
-		if (string.IsNullOrWhiteSpace(processOrExePath))
-		{
-			return false;
-		}
-		string text = Path.GetFileNameWithoutExtension(processOrExePath).ToLowerInvariant();
-		if (text == "explorer" || text == "cmd" || text == "powershell" || text == "wsl" || text == "calc" || text == "calculator" || text == "calculatorapp")
-		{
-			return false;
-		}
-		Process[] processesByName = Process.GetProcessesByName(text);
-		if ((processesByName == null || processesByName.Length == 0) && text.EndsWith("64"))
-		{
-			processesByName = Process.GetProcessesByName(text.Substring(0, text.Length - 2));
-		}
-		if (processesByName == null || processesByName.Length == 0)
-		{
-			return false;
-		}
-		nint foregroundWindow = GetForegroundWindow();
-		List<nint> windowHandles = new List<nint>();
-		Process[] array = processesByName;
-		foreach (Process process in array)
-		{
-			try
-			{
-				if (process.MainWindowHandle != IntPtr.Zero && IsWindowVisible(process.MainWindowHandle))
-				{
-					windowHandles.Add(process.MainWindowHandle);
-					continue;
-				}
-				int pid = process.Id;
-				EnumWindows(delegate(nint hWnd, nint lParam)
-				{
-					GetWindowThreadProcessId(hWnd, out var lpdwProcessId);
-					if (lpdwProcessId == pid && IsWindowVisible(hWnd))
-					{
-						StringBuilder stringBuilder = new StringBuilder(256);
-						GetWindowText(hWnd, stringBuilder, 256);
-						if (stringBuilder.Length > 0)
-						{
-							windowHandles.Add(hWnd);
-						}
-					}
-					return true;
-				}, IntPtr.Zero);
-			}
-			catch
-			{
-			}
-		}
-		if (windowHandles.Count == 0)
-		{
-			return false;
-		}
-		foreach (nint item in windowHandles)
-		{
-			if (item == foregroundWindow && !IsIconic(item))
-			{
-				ShowWindow(item, 6);
-				return true;
-			}
-		}
-		nint num = windowHandles[0];
-		if (IsIconic(num))
-		{
-			ShowWindow(num, 9);
-		}
-		else
-		{
-			ShowWindow(num, 5);
-		}
-		SetForegroundWindow(num);
-		BringWindowToTop(num);
-		return true;
+		LaunchWindowToggleResult result = LaunchWindowToggle.TryToggle(processOrExePath);
+		return result is LaunchWindowToggleResult.Minimized or LaunchWindowToggleResult.Activated;
 	}
 
 	public static bool TryToggleFolderWindow(string folderPath)
@@ -2325,16 +2253,52 @@ public static class ActionExecutor
             throw new InvalidOperationException($"Could not launch '{info.FileName}' in mode {mode}.");
     }
 
-    internal static bool ExecuteLaunchWithMode(string path, string arguments, StarPie.Plugin.ProcessLaunchMode mode)
+    internal static bool StartProcessWithPostActivation(ProcessStartInfo startInfo)
+    {
+        Process? proc = Process.Start(startInfo);
+        if (proc != null)
+        {
+            Task.Run(delegate
+            {
+                try
+                {
+                    using (proc)
+                    {
+                        for (int i = 0; i < 40; i++)
+                        {
+                            proc.Refresh();
+                            if (proc.HasExited) break;
+                            if (proc.MainWindowHandle != IntPtr.Zero) break;
+                            Thread.Sleep(50);
+                        }
+                        if (!proc.HasExited && proc.MainWindowHandle != IntPtr.Zero)
+                        {
+                            Thread.Sleep(150);
+                            WindowTaskbarHelper.ActivateWindow(proc.MainWindowHandle);
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            });
+        }
+        return true;
+    }
+
+    internal static bool ExecuteLaunchWithMode(
+        string path,
+        string arguments,
+        StarPie.Plugin.ProcessLaunchMode mode,
+        Func<string, LaunchWindowToggleResult>? toggleExisting = null,
+        Func<ProcessStartInfo, StarPie.Plugin.ProcessLaunchMode, bool>? launchProcess = null)
     {
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         if (string.IsNullOrWhiteSpace(path)) return false;
-        if (mode == StarPie.Plugin.ProcessLaunchMode.Default)
-        {
-            ExecuteLaunch(path, arguments, false);
-            return true;
-        }
+
         string file = Environment.ExpandEnvironmentVariables(path.Trim().Trim('"'));
+        AppLogger.LogInfo($"Executing Launch: Path='{file}', Args='{arguments}', Mode={mode}");
+
         bool appId = file.StartsWith("shell:AppsFolder", StringComparison.OrdinalIgnoreCase) ||
             (file.Contains('!') && !file.Contains(":\\") && !file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
         if (appId && mode == StarPie.Plugin.ProcessLaunchMode.Administrator)
@@ -2343,134 +2307,103 @@ public static class ActionExecutor
         {
             arguments = file.StartsWith("shell:AppsFolder", StringComparison.OrdinalIgnoreCase) ? file : "shell:AppsFolder\\" + file;
             file = "explorer.exe";
+            var uwpStartInfo = new ProcessStartInfo
+            {
+                FileName = file,
+                Arguments = arguments ?? "",
+                WorkingDirectory = "",
+                UseShellExecute = true,
+            };
+            if (launchProcess != null)
+                return launchProcess(uwpStartInfo, mode);
+
+            return ProcessLaunchExecutor.Start(uwpStartInfo, mode,
+                (f, args, dir, show) => TryLaunchUnelevatedViaExplorer(f, args, dir, show),
+                StartProcessWithPostActivation);
         }
-        return ProcessLaunchExecutor.Start(new ProcessStartInfo
+
+        string exeName = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+        bool isShellOrSpecial = ProcessWindowSelector.IsSpecialProgram(exeName);
+
+        // 仅在 Default 与 StandardUser 且无参数且非特殊程序时优先进行已有窗口切换
+        if (mode != StarPie.Plugin.ProcessLaunchMode.Administrator && !isShellOrSpecial && string.IsNullOrWhiteSpace(arguments))
+        {
+            var toggleFunc = toggleExisting ?? (p => LaunchWindowToggle.TryToggle(p));
+            LaunchWindowToggleResult toggleResult = toggleFunc(file);
+            switch (toggleResult)
+            {
+                case LaunchWindowToggleResult.Minimized:
+                    AppLogger.LogInfo($"Minimized active window for existing process '{file}'");
+                    return true;
+                case LaunchWindowToggleResult.Activated:
+                    AppLogger.LogInfo($"Activated window for existing process '{file}'");
+                    return true;
+                case LaunchWindowToggleResult.ActivationFailed:
+                    AppLogger.LogWarn($"Existing window for '{file}' was found but activation failed; aborting launch to avoid duplicate instances");
+                    return false;
+                case LaunchWindowToggleResult.NoWindow:
+                    break;
+            }
+        }
+
+        string workDir = "";
+        try
+        {
+            if (File.Exists(file))
+            {
+                string? dir = Path.GetDirectoryName(file);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    workDir = dir;
+            }
+            else if (Directory.Exists(file))
+            {
+                workDir = file;
+            }
+        }
+        catch
+        {
+        }
+
+        var processStartInfo = new ProcessStartInfo
         {
             FileName = file,
-            Arguments = arguments ?? "",
-            WorkingDirectory = File.Exists(file) ? Path.GetDirectoryName(file) ?? "" : "",
+            Arguments = arguments ?? string.Empty,
+            WorkingDirectory = workDir,
             UseShellExecute = true,
-        }, mode);
+        };
+
+        if (launchProcess != null)
+            return launchProcess(processStartInfo, mode);
+
+        bool started = ProcessLaunchExecutor.Start(processStartInfo, mode,
+            (f, args, dir, show) => TryLaunchUnelevatedViaExplorer(f, args, dir, show),
+            StartProcessWithPostActivation);
+
+        if (!started && mode == StarPie.Plugin.ProcessLaunchMode.StandardUser)
+        {
+            AppLogger.LogWarn($"Standard user launch failed for '{file}'; no fallback to elevated Process.Start");
+        }
+        return started;
     }
 
-	internal static void ExecuteLaunch(string path, string arguments, bool runAsStandardUser = false)
-	{
-		if (string.IsNullOrWhiteSpace(path))
-		{
-			return;
-		}
-		string text = Environment.ExpandEnvironmentVariables(path.Trim().Trim('"'));
-		AppLogger.LogInfo($"Executing Launch: Path='{text}', Args='{arguments}', StandardUser={runAsStandardUser}");
-		if (text.StartsWith("shell:AppsFolder", StringComparison.OrdinalIgnoreCase) || (text.Contains("!") && !text.Contains(":\\") && !text.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)))
-		{
-			string arguments2 = (text.StartsWith("shell:AppsFolder", StringComparison.OrdinalIgnoreCase) ? text : ("shell:AppsFolder\\" + text));
-			try
-			{
-				Process.Start(new ProcessStartInfo
-				{
-					FileName = "explorer.exe",
-					Arguments = arguments2,
-					UseShellExecute = true
-				});
-			}
-			catch (Exception ex)
-			{
-				AppLogger.LogError($"Failed to launch UWP app: {arguments2}", ex);
-				throw;
-			}
-		}
-		else
-		{
-			if (runAsStandardUser)
-			{
-				try
-				{
-					string workDir = "";
-					if (File.Exists(text))
-					{
-						workDir = Path.GetDirectoryName(text) ?? "";
-					}
-					if (TryLaunchUnelevatedViaExplorer(text, arguments ?? "", workDir))
-					{
-						AppLogger.LogInfo($"Launched '{text}' with Explorer standard user integrity via IShellDispatch2 (de-elevated)");
-						return;
-					}
-				}
-				catch (Exception exShell)
-				{
-					AppLogger.LogWarn($"Unelevated launch failed for '{text}', falling back to Process.Start: {exShell.Message}");
-				}
-			}
-
-			string exeName = Path.GetFileNameWithoutExtension(text).ToLowerInvariant();
-			bool isShellOrSpecial = exeName == "explorer" || exeName == "cmd" || exeName == "powershell" || exeName == "wsl" || exeName == "calc" || exeName == "calculator" || exeName == "calculatorapp";
-			if (!isShellOrSpecial && string.IsNullOrWhiteSpace(arguments) && TryToggleProcessWindow(text))
-			{
-				AppLogger.LogInfo($"Toggled active window for existing process '{text}'");
-				return;
-			}
-			ProcessStartInfo processStartInfo = new ProcessStartInfo
-			{
-				FileName = text,
-				Arguments = (arguments ?? string.Empty),
-				UseShellExecute = true
-			};
-			try
-			{
-				if (File.Exists(text))
-				{
-					string directoryName = Path.GetDirectoryName(text);
-					if (!string.IsNullOrEmpty(directoryName) && Directory.Exists(directoryName))
-					{
-						processStartInfo.WorkingDirectory = directoryName;
-					}
-				}
-				else if (Directory.Exists(text))
-				{
-					processStartInfo.WorkingDirectory = text;
-				}
-			}
-			catch
-			{
-			}
-			try
-			{
-				System.Diagnostics.Process started = System.Diagnostics.Process.Start(processStartInfo);
-				// 启动后自动把新窗口拉到前台（后台等待主窗口出现 → ActivateWindow，含前台解锁链）
-				if (started != null)
-				{
-					System.Diagnostics.Process proc = started;
-					System.Threading.Tasks.Task.Run(delegate
-					{
-						try
-						{
-							for (int i = 0; i < 40; i++)
-							{
-								if (proc.MainWindowHandle != IntPtr.Zero)
-								{
-									break;
-								}
-								System.Threading.Thread.Sleep(50);
-							}
-							if (proc.MainWindowHandle != IntPtr.Zero)
-							{
-								System.Threading.Thread.Sleep(150); // 等窗口内容就绪再激活
-								WindowTaskbarHelper.ActivateWindow(proc.MainWindowHandle);
-							}
-						}
-						catch
-						{
-						}
-					});
-				}
-			}
-			catch (Exception ex)
-			{
-				AppLogger.LogError($"Process.Start failed for '{text}' with args '{arguments}'", ex);
-				throw;
-			}
-		}
-	}
+    internal static void ExecuteLaunch(
+        string path,
+        string arguments,
+        bool runAsStandardUser = false,
+        Func<string, LaunchWindowToggleResult>? toggleExisting = null,
+        Func<ProcessStartInfo, StarPie.Plugin.ProcessLaunchMode, bool>? launchProcess = null)
+    {
+        bool ok = ExecuteLaunchWithMode(
+            path,
+            arguments,
+            runAsStandardUser ? StarPie.Plugin.ProcessLaunchMode.StandardUser : StarPie.Plugin.ProcessLaunchMode.Default,
+            toggleExisting,
+            launchProcess);
+        if (!ok)
+        {
+            throw new InvalidOperationException($"Launch execution failed for '{path}'");
+        }
+    }
 
 	/// <summary>
 	/// Issue #58: 当 StarPie 以管理员提权运行时，通过 Windows 资源管理器 (explorer.exe) 桌面 Shell 中转以标准普通用户权限 (Medium Integrity) 启动外部程序。
@@ -3036,7 +2969,9 @@ public static class ActionExecutor
 			ExecuteHotkey("Win+Shift+S");
 			return true;
 		case "taskmanager":
-			if (!TryToggleProcessWindow("taskmgr"))
+		{
+			LaunchWindowToggleResult tmResult = LaunchWindowToggle.TryToggle("taskmgr");
+			if (tmResult == LaunchWindowToggleResult.NoWindow)
 			{
 				try
 				{
@@ -3052,6 +2987,7 @@ public static class ActionExecutor
 				}
 			}
 			return true;
+		}
 		case "explorer":
 			try
 			{
@@ -3077,7 +3013,9 @@ public static class ActionExecutor
 			});
 			return true;
 		case "settings":
-			if (!TryToggleProcessWindow("SystemSettings"))
+		{
+			LaunchWindowToggleResult setResult = LaunchWindowToggle.TryToggle("SystemSettings");
+			if (setResult == LaunchWindowToggleResult.NoWindow)
 			{
 				try
 				{
@@ -3093,6 +3031,7 @@ public static class ActionExecutor
 				}
 			}
 			return true;
+		}
 		case "calculator":
 			AppLogger.LogInfo("Launching System Calculator");
 			try

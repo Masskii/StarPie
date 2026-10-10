@@ -239,6 +239,24 @@ public class AppConfig
 
 	public double CoreRadius { get; set; } = 36.0;
 
+	/// <summary>是否显示中心核心圆视觉元素（默认开启；关闭后隐藏中心圆外观但保留中心死区与动作判定）。</summary>
+	public bool ShowCoreCircle { get; set; } = true;
+
+	/// <summary>获取核心圆在视觉呈现中的 Visibility 状态（支持无 UI 逻辑快速求值）。</summary>
+	public static System.Windows.Visibility GetCoreCircleVisibility(bool showCoreCircle) =>
+		showCoreCircle ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+	/// <summary>判断是否应当在核心区域显示选中的动作文本（核心圆可见且启用选中文字）。</summary>
+	public static bool ShouldShowCoreSelectionText(bool showCoreCircle, bool showSelectedActionText) =>
+		showCoreCircle && showSelectedActionText;
+
+	/// <summary>获取中心死区判定的有效判定半径（像素）。优先取配置的死区半径，若未设置或小于等于0则取 CoreRadius 与 DragThreshold * 0.6 的较小值。</summary>
+	public static double GetEffectiveCoreDeadzone(double coreDeadzoneRadius, double coreRadius = 36.0, double dragThreshold = 25.0) =>
+		coreDeadzoneRadius > 0.0 ? coreDeadzoneRadius : Math.Min(coreRadius, dragThreshold * 0.6);
+
+	/// <summary>获取当前配置实例的有效死区判定半径。</summary>
+	public double GetEffectiveCoreDeadzone() => GetEffectiveCoreDeadzone(CoreDeadzoneRadius, CoreRadius, DragThreshold);
+
 	public string Shape { get; set; } = "Original";
 
 	public double SectorGap { get; set; } = 4.0;

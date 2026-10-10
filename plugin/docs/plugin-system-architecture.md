@@ -1,8 +1,8 @@
-# StarPie 插件系统架构与动作执行路径
+# StarPie 插件系统架构与调用路径
 
 > **本分支采用本方案**（2026-09-17 与上游 `dev-plugin` 同步后并入）：本文档描述的是「统一调用运行时 + 路径模块 + 活动调用租约 + 异步停用状态机」重构，即本分支的**现行实现**。此前曾判定它与 `AGENTS.md` §4 的顶层类型认领机制在 `PluginHost` 上不可共存，并据此删除了新增模块 `PluginRuntime` / `PluginPathModules`（915 行）；同步上游后确认**二者可以共存** —— `PluginHost` 既经 `PluginRuntime` 登记并分流 `action-execution` / `interaction-event` / `wheel-structure` 三条路径，也经 `PluginActionClaimRegistry` 做顶层类型认领，两个模块已恢复并在用。插件系统的通用规范见 `AGENTS.md` §4，运行时重构要点见 §4。
 >
-> 文档状态：宿主公共基础设施与动作执行路径已基本完成；交互事件路径保留兼容骨架，轮盘结构路径暂为安全占位。
+> 文档状态：宿主公共基础设施与动作执行路径已基本完成；统一交互事件路径已有 SDK 1.10 契约与有界调度候选，轮盘结构路径暂为安全占位。
 >
 > 最后更新：2026-09-17
 >
@@ -184,7 +184,7 @@ flowchart TD
 |---|---|
 | `PluginCatalog.cs` | 保存成功提交的动作、图标和词条注册；通过 `PluginRegistrationSession` 实现“暂存 → 冲突检查 → 原子提交 / 丢弃”；停用时按插件 ID 撤销全部贡献。 |
 | `PluginContext.cs` | 实现 SDK 的 `IPluginContext`；提供动作、图标、词条注册表，以及日志、设置、事件和宿主服务的装配。注册时检查动作 ID、参数字段、枚举选项和 SVG 等契约。 |
-| `PluginPathModules.cs` | 提供动作执行、交互事件和轮盘结构三条路径模块。当前动作执行路径已完整使用；交互事件保留兼容接缝；轮盘结构仍是安全占位。 |
+| `PluginPathModules.cs` | 提供动作执行、交互事件和轮盘结构三条路径模块。动作执行路径已完整使用；交互事件保留旧同步兼容接口并提供统一有界队列；轮盘结构仍是安全占位。 |
 | `PluginActionBinding.cs` | 将设置页的 `Type="Plugin"`、`PluginActionRef` 和动作列表绑定起来；按插件分组展示当前已安装且可用的动作。 |
 | `PluginParameterValidator.cs` | 对 `Required`、`MaxLength`、`Min`、`Max`、正则和枚举等宿主声明约束做统一校验。保存和执行共用同一入口。 |
 | `PluginParameterForm.cs` | 根据 `ParameterField` 声明生成宿主统一风格的参数控件，不允许插件提供自定义 XAML。 |
@@ -830,7 +830,78 @@ ActionName
 
 ---
 
-## 13. `PluginInvoker`：Sequential 和 Background 调度
+## 13. 交互事件路径的完整调用过程
+
+### 调用入口
+
+当前源码的 SDK 1.10 候选已经实现统一交互贡献，旧同步事件保持兼容。候选能力不等于所有已发布宿主可用；当前音效仍为内置实现，配置和播放引擎尚未迁移。API 签名、字段、筛选和异常的权威说明见[API 第 5 节](plugin-system-api-and-performance.md#5-交互事件-api)。
+
+```text
+插件 Initialize
+→ (IInteractionPluginContext)context.Interactions.Register(contribution)
+→ PluginInteractionRegistry → PluginRegistrationSession
+→ PluginCatalog.Commit（全部成功后可见）/ Discard（失败关闭登记）
+
+普通手势 / 粘滞轮盘的语义事实
+→ PluginInteractionSession 的不可变事件
+→ PluginHost.PublishInteractionEvent
+→ PluginRuntime.PublishInteractionEvent
+→ InteractionEventPathModule.Publish
+→ PluginCatalog.SnapshotInteractions(kind) + PluginHost.FindInteractionInstance 无安装锁快照
+→ 每插件 PluginInteractionQueue.Enqueue / DrainAsync
+→ 当前实例 / generation / 注册有效性 / PluginInvocationLease
+→ IInteractionContribution.OnInteractionAsync
+```
+
+“订阅”是内存中登记实现对象，不是另开进程等待消息。调用方向最终仍是宿主主动调用插件接口，与动作贡献一致；差别是动作定向执行并返回 ActionResult，而事件按筛选通知多个观察者，不允许回写选择或导航。
+
+### 事件生产与模块归属
+
+| 实现 | 职责 |
+|---|---|
+| SDK `Interactions.cs` | 可选上下文、注册/贡献接口、描述符、只读事件与枚举 |
+| `PluginInteractionRegistry` | Initialize 内校验/快照元数据并暂存；返回撤销凭据 |
+| `PluginCatalog` / `PluginRegistrationSession` | 与动作等贡献共同 Commit/Discard；提交/撤销时构建事件类型索引，整体发布稳定匹配组快照 |
+| `PluginInteractionSession` | 进程统一 SessionId、会话 Sequence、缓存初始选择、语义去重及终结冻结 |
+| `GestureController` | 普通鼠标/键盘手势的激活、选择与结束事实；不改命中几何或动作执行 |
+| `StickyWheelSession` | 粘滞轮盘的选择、确认、取消、替代/撤回事实 |
+| `RadialWindow` / `WheelPresentationCompletion` | 内容 Render 揭示成功前后检查版本，才通知语义 Presented；旧四参数入口保持 |
+| `InteractionEventPathModule` | 只读取当前事件类型的匹配组、校验登记/实例/代际、只入队；旧同步 Opening/Closed 兼容 |
+| `PluginInteractionQueue` | 只消费已匹配登记，每插件串行后台调度、有界容量、合并/淘汰/溢出及取消 |
+| `PluginCallCoordinator` / `PluginInstance` | 活动租约、原子代际门禁、停止排空及 ALC 生命周期 |
+
+普通会话在配置选定/手势激活时建立，因此快速松手不依赖 UI 已呈现；粘滞会话在请求受理对象建立时已有语义会话，配置键在首个事件前绑定，因此呈现准备前失败也有结束原因。`Presented` 不是请求受理，也不是 `Present()` 返回；它由有效 Render 内容揭示后的宿主通知产生，不保证显示器物理合成已经完成。
+
+首次呈现补当前选择，之后只在目标身份变化时报告；展开、回退、外甩与整会话取消有不同语义。目标 None/Core/主/子扇区看明确类型；几何槽位被选中并不代表配置了动作。ActionCommitted 只表达当前快速判据认可的配置意图，不是后台成功结果。
+
+### `InteractionEventPathModule` 与 `PluginInteractionQueue`
+
+广播不加载插件，不扫描安装目录，不争用安装时可能做 IO 的宿主实例表锁；只通知已经加载、完成注册且当前有效的实例。用户启用/预加载与事件分发是两条流程，晚加载不回放历史。
+
+目录在注册事务提交、单个 token 撤销和整插件撤销时重建事件类型索引，再整体发布快照。Publish 只读取当前 Kind 对应的匹配组，不扫描无关插件/贡献、不重新读取插件描述符；每个投递项携带已经匹配的登记组。DrainAsync 只逐个调用该组的接收者，不再筛选事件类型，但仍在每次调用前校验登记、当前实例、代际并取得租约。旧投递项保留旧组，token 撤销立即关闭该登记；索引重建改变组身份，相邻选择不会跨订阅快照合并。
+
+每插件默认 128 个待处理投递项，多个贡献共用串行消费者；插件间隔离，不需要为每个订阅建永久线程。相邻同会话且同订阅组的 SelectionChanged 合并，生命周期/导航事件是屏障；满时优先淘汰可替代选择，没有可替代项则暂停该代际事件路由、清空待投递引用、异步取消并诊断。不得更改用户 Enabled 或创建无界备用队列。
+
+Publish 的返回值为受理的匹配贡献数，不是已经完成的回调数。过滤、合并、淘汰、overflow、撤销/停用都可使消费者的 Sequence 有间隙；源的 End 至多一次不等于订阅者必达。需要会话状态的插件应做有界缓存，不能无限等一个可能缺失的 End。
+
+### `PluginInteractionSession` 与停止治理
+
+粘滞插件撤回时，`ReserveDismissal` 在 Sticky Gate 内先 `FreezeEnd("DismissedByPlugin")` 再拆下当前会话；`FinishDismissal` 锁外发布与 UI 清理。旧 Present 抢先进入“已非当前会话”守卫时，只能取走已经冻结的结束快照，不得覆盖原因或重复通知。冻结本身不调用发布器，避免在状态锁内放大调用链。
+
+每次回调绑定登记时的实例与代际，开始前取得活动租约，await 真实 ValueTask 到底再释放。开始停止后封入口并取消实例、撤销贡献及队列，等活动调用归零才 Shutdown/卸载；不合作调用继续受既有 Pending/需重启治理，不强制卸载。单一回调异常不回传输入/轮盘，不阻塞其他插件；当前队列异常日志限频，不能当作已自动隔离整个插件。
+
+撤销 token 使后续缓冲项不进入该贡献；已取得租约的在途回调仍须结束。插件后台 fire-and-forget 会绕开完整租约，SDK 不保证替插件管理它们。
+
+### 兼容接口与验证
+
+旧 IPluginEvents 的 Opening/Closed/语言订阅不改线程及时机；SDK 1.9 轮盘 tracker 只追踪调用者自己呼出的会话，它的字符串 ID 不等于统一语义 SessionId。新/旧订阅分别调用，不自动桥接成同一事件。
+
+图与时序见[架构图第 10 节](plugin-system-architecture-map.md#10-交互事件调用主路径)，开发示例见[快速入门第 9 节](plugin-development-quickstart.md#9-实现第一个交互贡献)。当前验证入口为[`scratch/interaction-event-tests/`](../../scratch/interaction-event-tests/)：记录型 SDK/BCL 夹具、实际宿主加载/调用/ALC、生产 Render 纯接缝与闸门强制撤回交错；相关断言有安全变异红态证明。测试不播放音频、不构造真实轮盘或执行系统动作。
+
+代码与自动复核收口不替代真实视觉、DPI、多屏与手感验收。音效插件迁移仍需独立实现与用户安装/启用、配置和播放生命周期契约，不把普通浏览变成自动安装，不静默重新启用禁用插件。
+
+---
+## 14. `PluginInvoker`：Sequential 和 Background 调度
 
 文件：`WinPieGestures/Plugin/PluginInvoker.cs`
 
@@ -889,7 +960,7 @@ ActionName
 
 ---
 
-## 14. 活动调用租约
+## 15. 活动调用租约
 
 租约是宿主内部的一次性使用凭证，插件作者看不到也不手动管理。
 
@@ -947,7 +1018,7 @@ PluginInvocationLease.Dispose
 
 ---
 
-## 15. 异步停用过程
+## 16. 异步停用过程
 
 入口：`PluginHost.DisableAsync`
 
@@ -1016,7 +1087,7 @@ Pending
 
 ---
 
-## 16. 热重载、更新和卸载为何必须等待
+## 17. 热重载、更新和卸载为何必须等待
 
 ### 热重载
 
@@ -1054,7 +1125,7 @@ UninstallAsync
 
 ---
 
-## 17. 三种锁和它们各自保护什么
+## 18. 三种锁和它们各自保护什么
 
 ### `PluginHost.Gate`
 
@@ -1091,7 +1162,7 @@ Unload
 
 ---
 
-## 18. 错误隔离、健康度和熔断
+## 19. 错误隔离、健康度和熔断
 
 `PluginInvoker` 捕获插件异常，不让异常进入：
 
@@ -1123,33 +1194,6 @@ Active
 被隔离插件拒绝新调用，并将启用状态关闭。
 
 因插件停用导致的取消不计入插件故障；环境不具备条件也不应被错误计为插件缺陷。
-
----
-
-## 19. 交互事件路径当前状态
-
-文件：`WinPieGestures/Plugin/PluginPathModules.cs`
-
-当前已经具备：
-
-- `InteractionEventPathModule`；
-- 路径生命周期；
-- 旧版 Opening/Closed 订阅；
-- 语言事件订阅；
-- 回调租约；
-- 停用时撤销订阅；
-- 统一事件信封占位。
-
-尚未完成：
-
-- 正式 `IInteractionContribution`；
-- 每插件有界队列；
-- `SessionId` 和 `Sequence`；
-- 高频事件合并；
-- 背压；
-- 真实轮盘状态机语义事件接入。
-
-交互事件路径的原则是只观察，不修改当前选择、结构和导航结果。
 
 ---
 
@@ -1267,7 +1311,7 @@ public async Task<ActionResult> ExecuteAsync(
 
 ### 其他路径
 
-- 交互事件：兼容骨架已存在，正式事件队列未完成；
+- 交互事件：SDK 1.10 候选已实现注册、真实语义源、有界调度和生命周期；API/图文齐备，实机门禁仍独立；
 - 轮盘结构：安全占位已存在，第三方契约未开放。
 
 ---
@@ -1291,7 +1335,7 @@ public async Task<ActionResult> ExecuteAsync(
 | `PluginContext` | `IPluginContext` 的宿主实现，向插件提供服务接口 |
 | `ActionExecutionPathModule` | 动作请求、激活、查询、校验和调用的路径语义 |
 | `PluginInvoker` | Sequential/Background、超时、结果和健康度 |
-| `InteractionEventPathModule` | 当前旧事件订阅与未来统一事件路径 |
+| `InteractionEventPathModule` | 旧同步事件订阅与统一异步交互贡献路径 |
 | `WheelStructurePathModule` | 未来声明式轮盘结构路径，目前为空实现 |
 | `KeyboardRemapPathModule` | 键盘重映射路径模块，负责停用时自动撤销会话与按键释放 |
 | `PluginSelfTest` | 临时沙箱中的端到端识别、安装、调用、租约、停用和卸载测试 |

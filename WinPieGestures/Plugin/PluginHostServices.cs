@@ -717,14 +717,26 @@ internal sealed class PluginSystemService : PluginGatedService, IHostSystemServi
 /// 轮盘照常可用，理由见该类的说明。
 /// </para>
 /// </summary>
-internal sealed class PluginWheelService : PluginGatedService, IHostWheelService
+internal sealed class PluginWheelService : PluginGatedService, IHostWheelSessionService
 {
     private readonly string _pluginId;
+    private readonly PluginInstance? _instance;
+    private readonly long _generationId;
+
+    internal PluginWheelService(PluginInstance instance, PluginCapability capabilities)
+        : base(instance.PluginId, capabilities, PluginCapability.Wheel, nameof(IHostWheelService))
+    {
+        _instance = instance;
+        _pluginId = instance.PluginId;
+        _generationId = instance.GenerationId;
+    }
 
     public PluginWheelService(string pluginId, PluginCapability capabilities)
         : base(pluginId, capabilities, PluginCapability.Wheel, nameof(IHostWheelService))
     {
         _pluginId = pluginId;
+        _instance = PluginHost.Find(pluginId);
+        _generationId = _instance?.GenerationId ?? 0;
     }
 
     public bool ShowWheel(double physicalCenterX, double physicalCenterY)
@@ -737,6 +749,33 @@ internal sealed class PluginWheelService : PluginGatedService, IHostWheelService
     {
         RequireCapability();
         return Guard(nameof(DismissWheel), () => StickyWheelSession.Dismiss(_pluginId));
+    }
+
+    public IDisposable? RequestTrackedWheel(
+        double physicalCenterX,
+        double physicalCenterY,
+        Action<WheelSessionStateChangedEventArgs> onStateChanged,
+        Action<WheelSelectionChangedEventArgs> onSelectionChanged)
+    {
+        RequireCapability();
+        try
+        {
+            PluginInstance? owner = _instance ?? PluginHost.Find(_pluginId);
+            long gen = _instance != null ? _generationId : (owner?.GenerationId ?? 0);
+            return StickyWheelSession.RequestTracked(
+                _pluginId,
+                physicalCenterX,
+                physicalCenterY,
+                onStateChanged,
+                onSelectionChanged,
+                owner,
+                gen);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError($"[plugin:{_pluginId}] IHostWheelSessionService.RequestTrackedWheel 执行失败", ex);
+            return null;
+        }
     }
 }
 

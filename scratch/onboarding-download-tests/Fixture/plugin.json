@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "starpie.plugin.keypadlayer",
+  "name": "Keypad Layer",
+  "description": "SDK-only test fixture for plugin selftest",
+  "author": "Antigravity",
+  "license": "MIT",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "minHostVersion": "0.0.0",
+  "targetFramework": "net8.0-windows",
+  "platform": "win-x64",
+  "assembly": "TestFixturePlugin.dll"
+}

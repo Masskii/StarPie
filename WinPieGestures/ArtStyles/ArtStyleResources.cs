@@ -7,6 +7,9 @@ namespace WinPieGestures.ArtStyles;
 
 public static class ArtStyleResources
 {
+    private static readonly DropShadowEffect LegacySoftChipShadow = CreateShadow(8, 1, .16);
+    private static readonly DropShadowEffect LegacyChipShadow = CreateShadow(8, 1, .12);
+
     public static void Apply(FrameworkElement root, ArtStyleProfile profile, bool publish = true)
     {
         var c = profile.Colors;
@@ -42,6 +45,8 @@ public static class ArtStyleResources
     {
         SetMetrics(root, 12, 1,"Segoe UI, Microsoft YaHei UI", 12, 1, .03);
         Set(root,"ControlCornerRadius",new CornerRadius(6));
+        Set(root, "ChipShadowSoftEffect", LegacySoftChipShadow);
+        Set(root, "ChipShadowEffect", LegacyChipShadow);
     }
 
     private static void SetMetrics(FrameworkElement root, double radius, double stroke, string font,
@@ -51,12 +56,18 @@ public static class ArtStyleResources
         Set(root, "ControlCornerRadius", new CornerRadius(Math.Min(12, radius * .6)), publish);
         Set(root, "ArtBorderThickness", new Thickness(stroke), publish);
         Set(root, "ArtFontFamily", new FontFamily(font), publish);
-        var effect = new DropShadowEffect { BlurRadius = blur, ShadowDepth = depth, Opacity = opacity, Color = Colors.Black };
-        effect.Freeze();
+        var effect = CreateShadow(blur, depth, opacity);
         Set(root, "CardShadowEffect", effect, publish);
         Set(root, "ChipShadowSoftEffect", effect, publish);
         Set(root, "ChipShadowEffect", effect, publish);
         if (root is Control control) control.SetResourceReference(Control.FontFamilyProperty, "ArtFontFamily");
+    }
+
+    private static DropShadowEffect CreateShadow(double blur, double depth, double opacity)
+    {
+        var effect = new DropShadowEffect { BlurRadius = blur, ShadowDepth = depth, Opacity = opacity, Color = Colors.Black };
+        effect.Freeze();
+        return effect;
     }
 
     private static void Set(FrameworkElement root, string key, object value, bool publish = true)

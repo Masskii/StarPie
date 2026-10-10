@@ -72,11 +72,12 @@ internal static class PluginHost
 
     private static readonly object Gate = new();
     private static readonly Dictionary<string, PluginInstance> Instances = new(StringComparer.OrdinalIgnoreCase);
+    private static PluginInstance[] _interactionInstances = Array.Empty<PluginInstance>();
 
     /// <summary>
     /// 三条 SPP 调用路径的统一运行时入口。动作路径先适配现有实现，交互与轮盘结构路径先建立空接缝。
     /// </summary>
-    private static readonly PluginRuntime Runtime = new(Catalog, Find, static () => _enabled);
+    private static readonly PluginRuntime Runtime = new(Catalog, Find, static () => _enabled, findInteractionInstance: FindInteractionInstance);
     private static readonly ConcurrentDictionary<string, Lazy<Task<PluginStopResult>>> StopOperations =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -351,6 +352,7 @@ internal static class PluginHost
                 lock (Gate)
                 {
                     Instances[manifest.Id] = instance;
+                    RefreshInteractionInstances();
                 }
 
                 string source = scan.ManifestSource == "AssemblyMetadata" ? "（程序集元数据）" : "";
@@ -645,7 +647,7 @@ internal static class PluginHost
             if (instance.IsExternal)
             {
                 PluginRegistryStore.RemoveEntry(pluginId);
-                lock (Gate) Instances.Remove(pluginId);
+                lock (Gate) { Instances.Remove(pluginId); RefreshInteractionInstances(); }
 
                 AppLogger.LogInfo(
                     $"[plugin] 已卸载 {pluginId}（外部路径登记，源文件未删除：{instance.Entry.ExternalPath}）");
@@ -681,7 +683,7 @@ internal static class PluginHost
             }
 
             PluginRegistryStore.RemoveEntry(pluginId);
-            lock (Gate) Instances.Remove(pluginId);
+            lock (Gate) { Instances.Remove(pluginId); RefreshInteractionInstances(); }
 
             AppLogger.LogInfo($"[plugin] 已卸载 {pluginId}（保留数据={!removePluginData}）");
             NotifyPluginSetChanged();
@@ -885,6 +887,18 @@ internal static class PluginHost
         }
     }
 
+    // 安装/扫描可以持 Gate 做 IO；交互发布只能读取不可变实例快照。
+    internal static void RefreshInteractionInstances()
+    {
+        lock (Gate) Volatile.Write(ref _interactionInstances, Instances.Values.ToArray());
+    }
+
+    internal static PluginInstance? FindInteractionInstance(string pluginId)
+    {
+        foreach (var instance in Volatile.Read(ref _interactionInstances))
+            if (instance.PluginId.Equals(pluginId, StringComparison.OrdinalIgnoreCase)) return instance;
+        return null;
+    }
     public static PluginInstance? Find(string pluginId)
     {
         if (string.IsNullOrWhiteSpace(pluginId)) return null;
@@ -962,7 +976,7 @@ internal static class PluginHost
         Runtime.RegisterWheelClosed(pluginId, handler);
 
     /// <summary>
-    /// 广播「轮盘即将呈现」。当前沿用旧同步回调；正式的有界事件队列将在交互路径阶段实现。
+    /// 广播「轮盘即将呈现」。沿用旧同步回调以保持已发布接口的线程及时机契约。
     /// </summary>
     public static void RaiseWheelOpening(ActionContext context)
     {
@@ -977,9 +991,9 @@ internal static class PluginHost
     }
 
     /// <summary>
-    /// 统一交互事件入口。当前尚未开放统一事件贡献，调用安全返回 0（没有订阅者接收）。
+    /// 统一交互事件入口。仅向已加载实例的匹配贡献入队，不等待处理或在广播时加载插件。
     /// </summary>
-    public static int PublishInteractionEvent(PluginInteractionEventEnvelope interactionEvent)
+    public static int PublishInteractionEvent(InteractionEvent interactionEvent)
     {
         if (!_enabled) return 0;
         return Runtime.PublishInteractionEvent(interactionEvent);
@@ -1053,6 +1067,7 @@ internal static class PluginHost
                 lock (Gate)
                 {
                     Instances[entry.Id] = instance;
+                    RefreshInteractionInstances();
                 }
             }
 
@@ -1090,6 +1105,7 @@ internal static class PluginHost
                 lock (Gate)
                 {
                     Instances[entry.Id] = instance;
+                    RefreshInteractionInstances();
                 }
                 discovered++;
             }

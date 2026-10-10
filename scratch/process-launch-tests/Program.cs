@@ -114,8 +114,270 @@ internal static class Program
         ProcessLaunchExecutor.Start(noDirectory, ProcessLaunchMode.StandardUser,
             (_, _, directory, show) => { Check(directory == Environment.CurrentDirectory && show == 1, "standard launch preserves inherited working directory"); return true; }, _ => throw new Exception("fallback"));
         RunPluginUpdateRestartChecks();
+        RunWindowToggleRegressionTests();
         RunColdEditorIntegration();
         Console.WriteLine($"PASS: {_checks} host launch/SDK/UI/update-restart checks; no processes or windows were started.");
+    }
+
+    private static void RunWindowToggleRegressionTests()
+    {
+        // 1. Floral scenario (baseline regression):
+        // HWND 133528: visible=true, iconic=false, style=WS_POPUP|WS_VISIBLE|WS_CLIPSIBLINGS (0x94000000), exStyle=WS_EX_NOACTIVATE|WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TRANSPARENT (0x080800A0), title="com.floral-notepaper.app-siw", class="com.floral-notepaper.app-sic", isMainWindowHint=true
+        // HWND 133526: visible=true, iconic=true, style=WS_OVERLAPPEDWINDOW|WS_VISIBLE|WS_MINIMIZE (0x34CF0000), exStyle=WS_EX_APPWINDOW|WS_EX_WINDOWEDGE|WS_EX_ACCEPTFILES (0x00040110), title="花笺", class="Tauri Window", isMainWindowHint=false
+        var floralAuxiliary = new WindowSnapshot
+        {
+            Handle = (nint)133528,
+            ProcessId = 16456,
+            Title = "com.floral-notepaper.app-siw",
+            ClassName = "com.floral-notepaper.app-sic",
+            IsVisible = true,
+            IsIconic = false,
+            Owner = 0,
+            Style = 0x94000000L,
+            ExStyle = 0x080800A0L,
+            Width = 100,
+            Height = 100,
+            IsForeground = false,
+            IsMainWindowHint = true
+        };
+        var floralReal = new WindowSnapshot
+        {
+            Handle = (nint)133526,
+            ProcessId = 16456,
+            Title = "花笺",
+            ClassName = "Tauri Window",
+            IsVisible = true,
+            IsIconic = true,
+            Owner = 0,
+            Style = 0x34CF0000L,
+            ExStyle = 0x00040110L,
+            Width = 800,
+            Height = 600,
+            IsForeground = false,
+            IsMainWindowHint = false
+        };
+
+        // Verification 1: Candidate selection must reject auxiliary window and choose real window
+        var selected = ProcessWindowSelector.SelectCandidate(new[] { floralAuxiliary, floralReal });
+        Check(selected?.Handle == (nint)133526, "floral scenario must select real window 133526, not auxiliary window 133528");
+
+        // Verification 2: Deterministic selection regardless of EnumWindows order
+        var selectedReverse = ProcessWindowSelector.SelectCandidate(new[] { floralReal, floralAuxiliary });
+        Check(selectedReverse?.Handle == (nint)133526, "selection must be deterministic regardless of enumeration order");
+
+        // Verification 3: All auxiliary windows candidate -> returns null
+        var onlyAux = ProcessWindowSelector.SelectCandidate(new[] { floralAuxiliary });
+        Check(onlyAux == null, "process with only auxiliary windows must not be treated as activatable");
+
+        // Verification 4: Normal window without title is still valid candidate
+        var untitledNormal = new WindowSnapshot
+        {
+            Handle = (nint)200001,
+            ProcessId = 5555,
+            Title = "",
+            ClassName = "CustomAppClass",
+            IsVisible = true,
+            IsIconic = false,
+            Owner = 0,
+            Style = 0x14CF0000L, // WS_OVERLAPPEDWINDOW | WS_VISIBLE
+            ExStyle = 0x00040000L, // WS_EX_APPWINDOW
+            Width = 500,
+            Height = 400
+        };
+        Check(ProcessWindowSelector.SelectCandidate(new[] { untitledNormal })?.Handle == (nint)200001, "normal untitled window is accepted");
+
+        // Verification 5: Toggle cycle:
+        // Case 5a: Minimized (iconic) window -> restore and activate ("唤出")
+        bool floralIsIconic = true;
+        bool floralIsForeground = false;
+        int restoreCalls = 0, activateCalls = 0, minimizeCalls = 0;
+        var toggleRes1 = LaunchWindowToggle.Toggle(
+            floralReal,
+            h => floralIsForeground,
+            h => floralIsIconic,
+            h => { minimizeCalls++; floralIsIconic = true; floralIsForeground = false; return true; },
+            h => { restoreCalls++; floralIsIconic = false; return true; },
+            h => { activateCalls++; floralIsForeground = true; return true; });
+        Check(toggleRes1 == LaunchWindowToggleResult.Activated && restoreCalls == 1 && activateCalls == 1 && minimizeCalls == 0,
+            "minimized window is restored and activated");
+
+        // Case 5b: Foreground normal window -> minimize ("收回")
+        var floralForeground = new WindowSnapshot
+        {
+            Handle = (nint)133526,
+            ProcessId = 16456,
+            Title = "花笺",
+            ClassName = "Tauri Window",
+            IsVisible = true,
+            IsIconic = false,
+            Owner = 0,
+            Style = 0x14CF0000L,
+            ExStyle = 0x00040110L,
+            IsForeground = true
+        };
+        bool floralFgIconic = false;
+        bool floralFgForeground = true;
+        restoreCalls = 0; activateCalls = 0; minimizeCalls = 0;
+        var toggleRes2 = LaunchWindowToggle.Toggle(
+            floralForeground,
+            h => floralFgForeground,
+            h => floralFgIconic,
+            h => { minimizeCalls++; floralFgIconic = true; floralFgForeground = false; return true; },
+            h => { restoreCalls++; floralFgIconic = false; return true; },
+            h => { activateCalls++; floralFgForeground = true; return true; });
+        Check(toggleRes2 == LaunchWindowToggleResult.Minimized && minimizeCalls == 1 && restoreCalls == 0 && activateCalls == 0,
+            "foreground window is minimized (toggled back)");
+
+        // Case 5c: Foreground window toggle again after minimized -> restores and activates
+        restoreCalls = 0; activateCalls = 0; minimizeCalls = 0;
+        var toggleRes3 = LaunchWindowToggle.Toggle(
+            floralForeground,
+            h => floralFgForeground,
+            h => floralFgIconic,
+            h => { minimizeCalls++; floralFgIconic = true; floralFgForeground = false; return true; },
+            h => { restoreCalls++; floralFgIconic = false; return true; },
+            h => { activateCalls++; floralFgForeground = true; return true; });
+        Check(toggleRes3 == LaunchWindowToggleResult.Activated && restoreCalls == 1 && activateCalls == 1 && minimizeCalls == 0,
+            "subsequent toggle restores and activates minimized window again");
+
+        // Case 5d: Refused minimize (ShowWindow returns true for visible window, but isIconic remains false)
+        int refusedMinimizeCalls = 0;
+        var refusedMinWindow = new WindowSnapshot { Handle = (nint)101, ProcessId = 42, Title = "Refused", IsVisible = true, Width = 800, Height = 600 };
+        var refusedMinRes = LaunchWindowToggle.Toggle(
+            refusedMinWindow,
+            h => true,  // foreground
+            h => false, // remains not iconic!
+            h => { refusedMinimizeCalls++; return true; }, // ShowWindow returns true because previously visible
+            h => throw new Exception("restore called"),
+            h => throw new Exception("activate called"));
+        Check(refusedMinRes == LaunchWindowToggleResult.ActivationFailed && refusedMinimizeCalls == 1,
+            "refused minimize where ShowWindow=true but iconic remains false must fail");
+
+        // Case 5e: Refused restore (isIconic remains true after restore call)
+        int refusedRestoreCalls = 0;
+        var refusedRestoreRes = LaunchWindowToggle.Toggle(
+            floralReal,
+            h => false,
+            h => true, // remains iconic
+            h => false,
+            h => { refusedRestoreCalls++; return true; },
+            h => true);
+        Check(refusedRestoreRes == LaunchWindowToggleResult.ActivationFailed && refusedRestoreCalls == 1,
+            "refused restore where iconic remains true must fail");
+
+        // Case 5f: Activation failure: candidate exists but activate returns false
+        var toggleFail = LaunchWindowToggle.Toggle(
+            floralReal,
+            h => false,
+            h => false,
+            h => false,
+            h => true,
+            h => false); // activation fails
+        Check(toggleFail == LaunchWindowToggleResult.ActivationFailed, "activation failure returns ActivationFailed");
+
+        // Verification 6: Launch execution integration:
+        // Case 6a: StandardUser with existing window -> toggles window, does NOT call Shell launch
+        int launchCalls = 0;
+        bool stdUserOk = ActionExecutor.ExecuteLaunchWithMode(
+            "floral-notepaper.exe",
+            "",
+            ProcessLaunchMode.StandardUser,
+            _ => LaunchWindowToggleResult.Activated,
+            (psi, mode) => { launchCalls++; return true; });
+        Check(stdUserOk && launchCalls == 0, "StandardUser with existing window toggles without launching new process");
+
+        // Case 6b: Existing window activation fails -> returns false, does NOT launch duplicate process
+        launchCalls = 0;
+        bool failLaunch = ActionExecutor.ExecuteLaunchWithMode(
+            "floral-notepaper.exe",
+            "",
+            ProcessLaunchMode.StandardUser,
+            _ => LaunchWindowToggleResult.ActivationFailed,
+            (psi, mode) => { launchCalls++; return true; });
+        Check(!failLaunch && launchCalls == 0, "activation failure reports failure without duplicate process launch");
+
+        // Case 6c: StandardUser without window -> launches via backend; if backend fails, does NOT fallback to Process.Start
+        launchCalls = 0;
+        bool stdUserFailedBackend = ActionExecutor.ExecuteLaunchWithMode(
+            "floral-notepaper.exe",
+            "",
+            ProcessLaunchMode.StandardUser,
+            _ => LaunchWindowToggleResult.NoWindow,
+            (psi, mode) => { launchCalls++; return false; });
+        Check(!stdUserFailedBackend && launchCalls == 1, "failed StandardUser launch backend does not fallback");
+
+        // Case 6d: Administrator mode with existing window -> does NOT toggle window, calls launch with Administrator
+        ProcessLaunchMode launchedMode = ProcessLaunchMode.Default;
+        launchCalls = 0;
+        bool adminOk = ActionExecutor.ExecuteLaunchWithMode(
+            "floral-notepaper.exe",
+            "",
+            ProcessLaunchMode.Administrator,
+            _ => throw new Exception("Administrator must not toggle window"),
+            (psi, mode) => { launchCalls++; launchedMode = mode; return true; });
+        Check(adminOk && launchCalls == 1 && launchedMode == ProcessLaunchMode.Administrator,
+            "Administrator mode bypasses window toggle and launches elevated");
+
+        // Case 6e: Non-empty arguments with existing window -> does NOT toggle window, calls launch
+        launchCalls = 0;
+        bool argsOk = ActionExecutor.ExecuteLaunchWithMode(
+            "floral-notepaper.exe",
+            "--new-window",
+            ProcessLaunchMode.Default,
+            _ => throw new Exception("Non-empty arguments must not toggle window"),
+            (psi, mode) => { launchCalls++; return true; });
+        Check(argsOk && launchCalls == 1, "non-empty arguments bypass window toggle and launch");
+
+        // Case 6f: Special programs (cmd, calc, etc.) -> does NOT toggle window
+        launchCalls = 0;
+        bool specialOk = ActionExecutor.ExecuteLaunchWithMode(
+            "calc.exe",
+            "",
+            ProcessLaunchMode.Default,
+            _ => throw new Exception("Special program must not toggle window"),
+            (psi, mode) => { launchCalls++; return true; });
+        Check(specialOk && launchCalls == 1, "special programs bypass window toggle and launch");
+
+        // Case 6g: Packaged application with administrator mode -> throws NotSupportedException
+        try
+        {
+            ActionExecutor.ExecuteLaunchWithMode("shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App", "", ProcessLaunchMode.Administrator);
+            throw new Exception("UWP admin launch must throw NotSupportedException");
+        }
+        catch (NotSupportedException)
+        {
+            _checks++;
+        }
+
+        // Case 6h: Legacy ExecuteLaunch failure propagation
+        try
+        {
+            ActionExecutor.ExecuteLaunch("fail.exe", "", runAsStandardUser: true,
+                _ => LaunchWindowToggleResult.NoWindow,
+                (psi, mode) => false);
+            throw new Exception("failed legacy ExecuteLaunch must throw");
+        }
+        catch (InvalidOperationException)
+        {
+            _checks++;
+        }
+
+        try
+        {
+            ActionExecutor.ExecuteLaunch("fail.exe", "", runAsStandardUser: false,
+                _ => LaunchWindowToggleResult.ActivationFailed,
+                (psi, mode) => throw new Exception("must not launch"));
+            throw new Exception("activation failure on legacy ExecuteLaunch must throw");
+        }
+        catch (InvalidOperationException)
+        {
+            _checks++;
+        }
+
+        ActionExecutor.ExecuteLaunch("ok.exe", "", runAsStandardUser: false,
+            _ => LaunchWindowToggleResult.Activated,
+            (psi, mode) => throw new Exception("must not launch on activated window"));
+        _checks++;
     }
 
     private static void RunPluginUpdateRestartChecks()
