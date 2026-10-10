@@ -30,6 +30,7 @@ public static class AppThemeManager
 				CurrentEffectiveTheme = art.IsDark ? "Dark" : "Light";
 				Window? artWindow = rootElement as Window ?? Window.GetWindow(rootElement);
 				if (artWindow != null) SetWindowDarkMode(artWindow, art.IsDark);
+				if (themedWindow != null) HostWindowFrame.Apply(themedWindow);
 				return;
 			}
 			ArtStyles.ArtStyleResources.ResetMetrics(rootElement);
@@ -59,6 +60,7 @@ public static class AppThemeManager
 			if (window != null)
 			{
 				SetWindowDarkMode(window, isDark);
+				HostWindowFrame.Apply(window);
 			}
 		}
 	}

@@ -572,6 +572,17 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("BtnConfirm", "确定", "確定", "Confirm", "確定");
 		Add("BtnCancel", "取消", "取消", "Cancel", "キャンセル");
 		Add("BtnOk", "确定", "確定", "OK", "OK");
+		Add("CaptionMinimize", "最小化", "最小化", "Minimize", "最小化");
+		Add("CaptionMaximize", "最大化", "最大化", "Maximize", "最大化");
+		Add("CaptionRestore", "还原窗口", "還原視窗", "Restore window", "元のサイズに戻す");
+		Add("CaptionClose", "关闭窗口", "關閉視窗", "Close window", "ウィンドウを閉じる");
+		Add("CaptionHideSettings", "关闭并隐藏控制台", "關閉並隱藏控制台", "Close and hide settings", "設定を閉じて非表示にする");
+		Add("PromptYes", "是", "是", "Yes", "はい");
+		Add("PromptNo", "否", "否", "No", "いいえ");
+		Add("PromptSavedTitle", "设置已保存", "設定已儲存", "Settings saved", "設定を保存しました");
+		Add("PromptSavedMessage", "配置已成功保存至硬盘。", "設定已成功儲存至磁碟。", "Your settings have been saved to disk.", "設定をディスクに保存しました。");
+		Add("PromptSaveFailedTitle", "保存失败", "儲存失敗", "Could not save settings", "設定を保存できませんでした");
+		Add("PromptSaveFailedMessage", "配置保存失败。请查看日志并确认配置目录的写入权限。", "設定儲存失敗。請查看記錄並確認設定目錄的寫入權限。", "Check the log and the write permissions for the configuration folder.", "ログと設定フォルダーの書き込み権限を確認してください。");
 		Add("BtnApply", "应用", "套用", "Apply", "適用");
 		Add("BtnTest", "测试", "測試", "Test", "テスト");
 		Add("BtnBrowseFolder", "选择文件夹...", "選擇資料夾...", "Browse Folder...", "フォルダーを選択...");

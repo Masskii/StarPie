@@ -582,9 +582,6 @@
               <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Border Width="38" Height="38" CornerRadius="8" Background="#00FFFFFF" VerticalAlignment="Center">
-              <UIElement.Effect>
-                <DynamicResource ResourceKey="ChipShadowSoftEffect" />
-              </UIElement.Effect>
               <Image Name="SidebarLogoImage" Source="logo.png" Width="38" Height="38" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
             </Border>
             <StackPanel Name="SidebarBrandTextPanel" Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Visible">

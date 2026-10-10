@@ -63,6 +63,7 @@ internal static class ArtStyleTests
         RunRendererTests();
         RunStudioTests(args);
         RunReviewRegressions();
+        RunWindowPresentationTests(args);
         RunSharedMetricTests();
         if (args.Contains("--export-themes"))
         {
@@ -155,6 +156,7 @@ internal static class ArtStyleTests
         SetConfig(c);
         var settings=new SettingsWindow();
         Check(settings.FindName("ThemeStudioControl") is UserControl,"studio integrated in native settings");
+        Check(((Image)settings.FindName("SidebarLogoImage")).Source is DrawingImage { IsFrozen: true }, "sidebar uses the frozen theme-aware vector brand");
         var integrated=(ThemeStudio)settings.FindName("ThemeStudioControl");
         typeof(ThemeStudio).GetMethod("Subscribe",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(integrated,null);
         settings.SwitchToTab(1);
@@ -292,6 +294,121 @@ internal static class ArtStyleTests
             settings.Close();
         }
         static string Hex(object? brush) => ((SolidColorBrush)brush!).Color.ToString();
+    }
+
+    private static void RunWindowPresentationTests(string[] args)
+    {
+        var assembly = typeof(AppConfig).Assembly;
+        var dialogType = assembly.GetType("WinPieGestures.AppMessageDialog");
+        var frameType = assembly.GetType("WinPieGestures.HostWindowFrame");
+        Check(dialogType != null && frameType != null, "shared themed caption and prompt exist");
+        if (dialogType == null || frameType == null) return;
+        var config = new AppConfig { SelectedArtStyleId = "paper", AutoCheckUpdate = false };
+        SetConfig(config);
+        var content = new TextBox { Text = "Original content", MinHeight = 100 };
+        var window = new Window { Title = "StarPie", Width = 460, Height = 200, Content = content };
+        AppThemeManager.ApplyTheme(window, "Light");
+        object? wrapped = window.Content;
+        Check(System.Windows.Shell.WindowChrome.GetWindowChrome(window) is { CaptionHeight: 36, UseAeroCaptionButtons: false },
+            "host caption uses native WPF non-client behavior");
+        Check(Elements((FrameworkElement)window.Content).Contains(content), "caption wrapping preserves original content identity");
+        AppThemeManager.ApplyTheme(window, "Light");
+        Check(ReferenceEquals(wrapped, window.Content), "reapplying a theme does not nest window frames");
+        var captionButtons = Elements((FrameworkElement)window.Content).OfType<Button>().ToArray();
+        Check(captionButtons.All(button => button.IsEnabled), "caption commands are enabled immediately after frame construction");
+        var maximize = captionButtons.Single(button => button.Command == System.Windows.SystemCommands.MaximizeWindowCommand);
+        Check(captionButtons.Any(button => button.Command == System.Windows.SystemCommands.MinimizeWindowCommand) &&
+            captionButtons.Any(button => button.Command == System.Windows.SystemCommands.CloseWindowCommand), "caption retains standard minimize and close commands");
+        window.WindowState = WindowState.Maximized;
+        AppThemeManager.ApplyTheme(window, "Light");
+        Check(maximize.Command == System.Windows.SystemCommands.RestoreWindowCommand, "maximized caption exposes restore command");
+        window.WindowState = WindowState.Normal;
+        window.ResizeMode = ResizeMode.NoResize;
+        AppThemeManager.ApplyTheme(window, "Light");
+        Check(maximize.Visibility == Visibility.Collapsed && System.Windows.Shell.WindowChrome.GetWindowChrome(window).ResizeBorderThickness.Left == 0,
+            "fixed-size prompts hide resize caption controls");
+        window.Close();
+
+        var overlay = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Content = new Border() };
+        object? overlayContent = overlay.Content;
+        AppThemeManager.ApplyTheme(overlay, "Light");
+        Check(System.Windows.Shell.WindowChrome.GetWindowChrome(overlay) == null && ReferenceEquals(overlayContent, overlay.Content),
+            "transparent overlays retain their original window contract");
+        overlay.Close();
+
+        var lateWindow = new Window { Title = "Parameters" };
+        AppThemeManager.ApplyTheme(lateWindow, "Light");
+        Check(System.Windows.Shell.WindowChrome.GetWindowChrome(lateWindow) == null, "empty dynamic windows defer caption wrapping until content exists");
+        var lateContent = new Border { Child = new TextBox { Text = "Parameter input" } };
+        lateWindow.Content = lateContent;
+        AppThemeManager.ApplyTheme(lateWindow, "Light");
+        Check(Elements((FrameworkElement)lateWindow.Content).OfType<Grid>().Any(grid => grid.Name == "HostCaption") &&
+            Elements((FrameworkElement)lateWindow.Content).Contains(lateContent), "dynamic content remains below its installed caption");
+        lateWindow.Close();
+
+        foreach (var profile in ArtStyleCatalog.GetAll(config))
+        {
+            config.SelectedArtStyleId = profile.Id;
+            var dialog = (Window)Activator.CreateInstance(dialogType, [I18n.T("PromptSavedMessage"), I18n.T("PromptSavedTitle"), MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK])!;
+            var elements = Elements((FrameworkElement)dialog.Content).ToArray();
+            var caption = elements.OfType<Grid>().Single(grid => grid.Name == "HostCaption");
+            Check(((SolidColorBrush)caption.Background).Color == ArtStyleResources.Brush(profile.Colors.Background).Color, "caption follows current palette " + profile.Id);
+            Check(elements.OfType<Image>().First().Source is DrawingImage { IsFrozen: true }, "caption brand mark is vector and frozen " + profile.Id);
+            var results = (StackPanel)dialog.FindName("ResultButtons");
+            var primary = results.Children.OfType<Button>().Single();
+            Check(primary.IsCancel, "OK-only prompt preserves the Escape route " + profile.Id);
+            Check(primary.IsDefault && ArtStyleResolver.Contrast(((SolidColorBrush)primary.Foreground).Color.ToString(), ((SolidColorBrush)primary.Background).Color.ToString()) >= 4.5,
+                "prompt default button is readable " + profile.Id);
+            if (args.Contains("--render"))
+            {
+                string directory = Path.GetFullPath("artifacts/art-styles"); Directory.CreateDirectory(directory);
+                Capture((FrameworkElement)dialog.Content, 460, 210, Path.Combine(directory, profile.Id + "-prompt.png"));
+            }
+            primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check((MessageBoxResult)dialogType.GetProperty("Response")!.GetValue(dialog)! == MessageBoxResult.OK, "prompt OK preserves its result " + profile.Id);
+        }
+        foreach (var choice in new[] { MessageBoxResult.Yes, MessageBoxResult.No, MessageBoxResult.Cancel })
+        {
+            var dialog = (Window)Activator.CreateInstance(dialogType, ["Question", "StarPie", MessageBoxButton.YesNoCancel, MessageBoxImage.Question, MessageBoxResult.No])!;
+            var results = (StackPanel)dialog.FindName("ResultButtons");
+            var buttons = results.Children.OfType<Button>().ToArray();
+            Check(buttons.Single(button => button.IsDefault).Content?.ToString() == I18n.T("PromptNo"), "confirmation preserves explicit default No for " + choice);
+            Check(buttons.Single(button => button.IsCancel).Content?.ToString() == I18n.T("BtnCancel"), "confirmation keeps keyboard cancellation for " + choice);
+            int index = choice == MessageBoxResult.Yes ? 0 : choice == MessageBoxResult.No ? 1 : 2;
+            buttons[index].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check((MessageBoxResult)dialogType.GetProperty("Response")!.GetValue(dialog)! == choice, "confirmation preserves selected result " + choice);
+        }
+        var yesNo = (Window)Activator.CreateInstance(dialogType, ["Question", "StarPie", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No])!;
+        var closing = new System.ComponentModel.CancelEventArgs();
+        dialogType.GetMethod("Dialog_Closing", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(yesNo, [yesNo, closing]);
+        Check(closing.Cancel, "YesNo confirmation rejects dismissal without a choice");
+        var no = ((StackPanel)yesNo.FindName("ResultButtons")).Children.OfType<Button>().Last();
+        no.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check((MessageBoxResult)dialogType.GetProperty("Response")!.GetValue(yesNo)! == MessageBoxResult.No, "YesNo confirmation returns No rather than accidental consent");
+        foreach (var language in Enum.GetValues<LanguageCode>())
+        {
+            I18n.CurrentLanguage = language;
+            Check(new[] { "CaptionMinimize", "CaptionMaximize", "CaptionRestore", "CaptionClose", "CaptionHideSettings", "PromptYes", "PromptNo", "PromptSavedTitle", "PromptSavedMessage" }
+                .All(key => !string.IsNullOrWhiteSpace(I18n.T(key)) && I18n.T(key) != key), "caption and prompt strings resolve " + language);
+        }
+        var released = ClosedPromptReference(dialogType);
+        for (int i = 0; i < 3 && released.IsAlive; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+        Check(!released.IsAlive, "closed prompt and caption are not retained by language listeners");
+        static IEnumerable<FrameworkElement> Elements(FrameworkElement root)
+        {
+            yield return root;
+            foreach (object child in LogicalTreeHelper.GetChildren(root))
+                if (child is FrameworkElement element) foreach (var descendant in Elements(element)) yield return descendant;
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference ClosedPromptReference(Type type)
+    {
+        var dialog = (Window)Activator.CreateInstance(type, ["Lifetime", "StarPie", MessageBoxButton.OK, MessageBoxImage.None, MessageBoxResult.OK])!;
+        var reference = new WeakReference(dialog);
+        dialog.Close();
+        return reference;
     }
 
     private static void RenderStyles()
