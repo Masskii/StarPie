@@ -843,6 +843,7 @@ public partial class SettingsWindow : Window
 	private void LoadConfigToUi()
 	{
 		ReloadArtStyleStudio();
+		ReloadUiFontOptions();
 		ProfilesListBox.ItemsSource = null;
 		ProfilesListBox.ItemsSource = ConfigManager.CurrentConfig.Profiles;
 		if (MappingsProfileComboBox != null)
@@ -1833,6 +1834,7 @@ public partial class SettingsWindow : Window
 
 	public void ApplyLocalization()
 	{
+		ReloadUiFontOptions();
 		base.Title = I18n.T("WindowTitle");
 		if (ConfigModeSimpleRadio != null)
 		{

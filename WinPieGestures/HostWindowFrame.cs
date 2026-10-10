@@ -91,6 +91,7 @@ internal static class HostWindowFrame
             minimize.Command = SystemCommands.MinimizeWindowCommand;
             Close.Command = SystemCommands.CloseWindowCommand;
             window.StateChanged += StateChanged;
+            border.SizeChanged += BorderSizeChanged;
             window.Closed += Closed;
             I18n.LanguageChanged += LanguageChanged;
         }
@@ -99,6 +100,7 @@ internal static class HostWindowFrame
         private void Bind(RoutedCommand command, Action execute, Func<bool> canExecute)
             => window.CommandBindings.Add(new CommandBinding(command, (_, _) => execute(), (_, e) => { e.CanExecute = canExecute(); e.Handled = true; }));
         private void StateChanged(object? sender, EventArgs e) => Refresh();
+        private void BorderSizeChanged(object sender, SizeChangedEventArgs e) => RefreshClip();
         private void LanguageChanged()
         {
             if (window.Dispatcher.CheckAccess()) Refresh();
@@ -108,6 +110,7 @@ internal static class HostWindowFrame
         {
             I18n.LanguageChanged -= LanguageChanged;
             window.StateChanged -= StateChanged;
+            border.SizeChanged -= BorderSizeChanged;
             window.Closed -= Closed;
         }
 
@@ -121,9 +124,23 @@ internal static class HostWindowFrame
             maximize.Command = restored ? SystemCommands.MaximizeWindowCommand : SystemCommands.RestoreWindowCommand;
             maximizeIcon.Data = FrozenGeometry(restored ? "M 2,2 L 10,2 L 10,10 L 2,10 Z" : "M 4,2 L 11,2 L 11,9 M 1,5 L 8,5 L 8,12 L 1,12 Z");
             border.Padding = new Thickness(window.WindowState == WindowState.Maximized ? 6 : 0);
+            double radius = window.WindowState == WindowState.Maximized ? 0 : 8;
+            border.CornerRadius = new CornerRadius(radius);
+            // Non-glass WindowChrome forwards this value as the Win32 rounding ellipse diameter.
+            WindowChrome.GetWindowChrome(window).CornerRadius = new CornerRadius(radius * 2);
+            RefreshClip();
             Label(minimize, "CaptionMinimize");
             Label(maximize, restored ? "CaptionMaximize" : "CaptionRestore");
             Label(Close, window is SettingsWindow ? "CaptionHideSettings" : "CaptionClose");
+        }
+
+        private void RefreshClip()
+        {
+            if (border.ActualWidth <= 0 || border.ActualHeight <= 0) return;
+            double radius = border.CornerRadius.TopLeft;
+            var clip = new RectangleGeometry(new Rect(0, 0, border.ActualWidth, border.ActualHeight), radius, radius);
+            clip.Freeze();
+            border.Clip = clip;
         }
 
         private Button CaptionButton(string geometry, bool close)

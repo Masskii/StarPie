@@ -4529,6 +4529,17 @@
                 </Grid>
               </Border>
 
+              <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Name="UiFontTitle" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    <TextBlock Name="UiFontHint" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                  </StackPanel>
+                  <ComboBox Name="UiFontFamilyComboBox" Grid.Column="1" MinWidth="260" MaxWidth="320" Height="34" Style="{StaticResource FlatComboBoxStyle}" VerticalAlignment="Center" SelectionChanged="UiFontFamilyComboBox_SelectionChanged" DropDownOpened="UiFontFamilyComboBox_DropDownOpened" AutomationProperties.AutomationId="UiFontFamilyComboBox"/>
+                </Grid>
+              </Border>
+
               <!-- Card: OCR 截屏识字与智能接口设置 -->
               <Border Name="Tab3_OcrCardBorder" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="{DynamicResource ArtBorderThickness}" CornerRadius="{DynamicResource CardCornerRadius}" Padding="20" Margin="0,0,0,14">
                 <UIElement.Effect>

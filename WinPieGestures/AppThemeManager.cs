@@ -27,6 +27,7 @@ public static class AppThemeManager
 			if (art != null)
 			{
 				ArtStyles.ArtStyleResources.Apply(rootElement, art);
+				UiTypography.Apply(rootElement, ConfigManager.CurrentConfig);
 				CurrentEffectiveTheme = art.IsDark ? "Dark" : "Light";
 				Window? artWindow = rootElement as Window ?? Window.GetWindow(rootElement);
 				if (artWindow != null) SetWindowDarkMode(artWindow, art.IsDark);
@@ -57,6 +58,7 @@ public static class AppThemeManager
 				break;
 			}
 			Window window = (rootElement as Window) ?? Window.GetWindow((DependencyObject)(object)rootElement);
+			UiTypography.Apply(rootElement, ConfigManager.CurrentConfig);
 			if (window != null)
 			{
 				SetWindowDarkMode(window, isDark);

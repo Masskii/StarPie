@@ -84,6 +84,8 @@ public class AppConfig
 	public double OuterEscapeDistance { get; set; } = 186.0;
 
 	public string AppTheme { get; set; } = "Light";
+	/// <summary>System follows Windows UI fonts; Theme opts into art typography; other values name an installed UI font.</summary>
+	public string UiFontFamily { get; set; } = "System";
 
 	/// <summary>Empty preserves legacy appearance; themes only describe visuals, never actions/geometry.</summary>
 	public string SelectedArtStyleId { get; set; } = "";

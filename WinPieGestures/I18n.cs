@@ -572,6 +572,10 @@ public static string FormatKeyName(string? keyStr, uint vkCode = 0)
 		Add("BtnConfirm", "确定", "確定", "Confirm", "確定");
 		Add("BtnCancel", "取消", "取消", "Cancel", "キャンセル");
 		Add("BtnOk", "确定", "確定", "OK", "OK");
+		Add("UiFontTitle", "界面字体", "介面字型", "Interface font", "インターフェイスのフォント");
+		Add("UiFontSystem", "跟随 Windows 系统字体", "跟隨 Windows 系統字型", "Follow Windows UI font", "Windows の UI フォントに合わせる");
+		Add("UiFontTheme", "跟随主题字体", "跟隨主題字型", "Follow theme typography", "テーマのフォントに合わせる");
+		Add("UiFontHint", "控制台、标题栏与宿主弹窗同步使用此字体。轮盘和每扇区字体仍由原设置控制。", "控制台、標題列與宿主彈窗同步使用此字型。輪盤和每扇區字型仍由原設定控制。", "Applies to settings, captions and host dialogs. Wheel and per-sector fonts keep their own settings.", "設定画面、タイトルバー、ホストのダイアログに適用します。ホイールとセクターのフォントは従来の設定を使用します。");
 		Add("CaptionMinimize", "最小化", "最小化", "Minimize", "最小化");
 		Add("CaptionMaximize", "最大化", "最大化", "Maximize", "最大化");
 		Add("CaptionRestore", "还原窗口", "還原視窗", "Restore window", "元のサイズに戻す");

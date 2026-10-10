@@ -64,6 +64,7 @@ internal static class ArtStyleTests
         RunStudioTests(args);
         RunReviewRegressions();
         RunWindowPresentationTests(args);
+        RunCornersFontsAndLayerTests();
         RunSharedMetricTests();
         if (args.Contains("--export-themes"))
         {
@@ -409,6 +410,111 @@ internal static class ArtStyleTests
         var reference = new WeakReference(dialog);
         dialog.Close();
         return reference;
+    }
+
+    private static void RunCornersFontsAndLayerTests()
+    {
+        var config = new AppConfig { AutoCheckUpdate = false, SelectedArtStyleId = "grove" };
+        SetConfig(config);
+        var window = new Window { Content = new TextBlock { Text = "System UI font" }, Width = 460, Height = 200 };
+        AppThemeManager.ApplyTheme(window, "Light");
+        var border = (Border)window.Content;
+        border.Measure(new Size(460, 200)); border.Arrange(new Rect(0, 0, 460, 200)); border.UpdateLayout();
+        var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(window);
+        Check(chrome.CornerRadius.TopLeft > 0 && border.CornerRadius.TopLeft > 0 && border.Clip != null && !border.Clip.FillContains(new Point(0, 0)),
+            "restored host window has matching rounded native and client bounds");
+        window.WindowState = WindowState.Maximized;
+        AppThemeManager.ApplyTheme(window, "Light");
+        Check(chrome.CornerRadius.TopLeft == 0 && border.CornerRadius.TopLeft == 0, "maximized host window keeps square work-area bounds");
+        window.WindowState = WindowState.Normal;
+        AppThemeManager.ApplyTheme(window, "Light");
+        Check(chrome.CornerRadius.TopLeft > 0, "restoring a window restores rounded corners");
+
+        var uiFont = typeof(AppConfig).GetProperty("UiFontFamily");
+        Check(uiFont != null, "configuration exposes an additive UI font preference");
+        if (uiFont != null)
+        {
+            Check((string)uiFont.GetValue(config)! == "System", "UI font follows Windows by default");
+            window.Resources[SystemFonts.MessageFontFamilyKey] = new FontFamily("Georgia");
+            AppThemeManager.ApplyTheme(window, "Light");
+            Check(window.FontFamily.Source == "Georgia", "UI font resolves the Windows dynamic resource rather than a fixed family");
+            window.Resources[SystemFonts.MessageFontFamilyKey] = new FontFamily("Arial");
+            Check(window.FontFamily.Source == "Arial", "an open host window follows system font resource changes");
+            uiFont.SetValue(config, "Consolas");
+            AppThemeManager.ApplyTheme(window, "Light");
+            Check(window.FontFamily.Source == "Consolas", "an explicit UI font remains independent of the theme");
+            uiFont.SetValue(config, "Theme");
+            AppThemeManager.ApplyTheme(window, "Light");
+            Check(window.FontFamily.Source == ArtStyleCatalog.Find(config, "grove")!.FontFamily, "theme typography remains an explicit UI option");
+            uiFont.SetValue(config, "file:///outside/font.ttf");
+            AppThemeManager.ApplyTheme(window, "Light");
+            Check(window.FontFamily.Source == "Arial", "invalid external UI font paths fall back without loading files");
+            uiFont.SetValue(config, "Consolas");
+            var copy = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(config))!;
+            Check((string)uiFont.GetValue(copy)! == "Consolas", "UI font preference survives full config roundtrip");
+            uiFont.SetValue(config, "System");
+            var settings = new SettingsWindow();
+            try
+            {
+                var selector = (ComboBox)settings.FindName("UiFontFamilyComboBox");
+                Check(selector.Items.Count == 2 && (string)uiFont.GetValue(config)! == "System", "opening settings neither enumerates all UI fonts nor rewrites the preference");
+                string wheelFont = config.WheelFontFamily;
+                selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => item.Tag?.ToString() == "Theme");
+                Check((string)uiFont.GetValue(config)! == "Theme" && settings.FontFamily.Source == ArtStyleCatalog.Find(config, "grove")!.FontFamily,
+                    "the real UI selector immediately applies theme typography");
+                selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().Single(item => item.Tag?.ToString() == "System");
+                Check((string)uiFont.GetValue(config)! == "System" && settings.FontFamily.Source == SystemFonts.MessageFontFamily.Source,
+                    "the real UI selector returns to Windows typography");
+                Check(config.WheelFontFamily == wheelFont, "UI font selection preserves the separate wheel font preference");
+            }
+            finally
+            {
+                typeof(SettingsWindow).GetField("_isClosingForRelease", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(settings, true);
+                settings.Close();
+            }
+        }
+        window.Close();
+
+        List<ActionItem> LayerActions(string prefix) => Enumerable.Range(0, 8).Select(i => new ActionItem
+        {
+            Name = prefix + i, LayoutMode = "TextOnly",
+            SubActions = [new ActionItem { Name = "Sub A", LayoutMode = "TextOnly" }, new ActionItem { Name = "Sub B", LayoutMode = "TextOnly" }]
+        }).ToList();
+        var first = new WheelLayer { Name = "First", Actions = LayerActions("First ") };
+        var second = new WheelLayer { Name = "Second", Actions = LayerActions("Second ") };
+        var profile = new WheelProfile { Layers = [first, second], ActiveLayerIndex = 0, Actions = first.Actions };
+        config = new AppConfig { EnableMultiTier = true, SubmenuStyle = "Wheel", AutoExpandSubRingsOnPopup = true,
+            IconLayoutMode = "TextOnly", ShowText = true, ShowLayerIndicator = false, Profiles = [profile] };
+        SetConfig(config);
+        var radial = new RadialWindow(new Point(400, 400), profile);
+        TextBlock[] SubLabels() => ((IEnumerable)typeof(RadialWindow).GetField("_subContentContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(radial)!)
+            .Cast<Grid>().SelectMany(grid => grid.Children.OfType<StackPanel>()).SelectMany(panel => panel.Children.OfType<TextBlock>()).ToArray();
+        try
+        {
+            foreach (int index in new[] { 1, 0, 1, 0 })
+            {
+                radial.SwitchToLayer(index);
+                var before = SubLabels().Select(text => text.FontWeight).ToArray();
+                Check(before.Length == 16 && before.All(weight => weight == FontWeights.Medium), "switching to layer " + index + " creates normal-weight secondary labels before mouse movement");
+                radial.HighlightSector(-1, -1, false);
+                Check(SubLabels().Select(text => text.FontWeight).SequenceEqual(before), "mouse movement does not change unselected secondary weights on layer " + index);
+            }
+            radial.HighlightSector(0, 0, true);
+            Check(SubLabels().Count(text => text.FontWeight == FontWeights.Bold) == 1, "only the hovered secondary label becomes bold");
+            radial.HighlightSector(-1, -1, false);
+            Check(SubLabels().All(text => text.FontWeight == FontWeights.Medium), "leaving a secondary label restores the same normal weight");
+        }
+        finally { radial.Close(); }
+        config.SubmenuStyle = "Fan";
+        var fan = new RadialWindow(new Point(400, 400), profile);
+        try
+        {
+            typeof(RadialWindow).GetMethod("RenderFanSubtier", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(fan, [0]);
+            var containers = (IEnumerable)typeof(RadialWindow).GetField("_subContentContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(fan)!;
+            var labels = containers.Cast<Grid>().SelectMany(grid => grid.Children.OfType<StackPanel>()).SelectMany(panel => panel.Children.OfType<TextBlock>()).ToArray();
+            Check(labels.Length == 2 && labels.All(text => text.FontWeight == FontWeights.Medium), "fan secondary labels use the same normal weight on first construction");
+        }
+        finally { fan.Close(); }
     }
 
     private static void RenderStyles()
